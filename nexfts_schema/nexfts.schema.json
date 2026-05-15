@@ -1,0 +1,443 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nexfts.schema.json/0.1.1",
+  "title": "NEXFTS – Neutral Exchange Format for Battery Test Sequences",
+  "description": "Schema for NEXFTS test definition files (version 0.1.1). NEXFTS = Neutral Exchange Format for Battery Test Sequences.",
+  "type": "object",
+  "required": [
+    "nexfts_schema_version",
+    "metadata",
+    "global_values",
+    "global_limits",
+    "steps"
+  ],
+
+  "properties": {
+    "nexfts_schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+      "description": "Version of the NEXFTS schema this file is validated against, e.g. \"0.1.1\""
+    },
+
+    "metadata": {
+      "type": "object",
+      "required": ["name", "version", "description"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "standard": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name":   { "type": "string", "description": "Standard identifier, e.g. \"EN 50342-1\"" },
+            "clause": { "type": "string", "description": "Relevant clause, e.g. \"Clause 9.1\"" },
+            "title":  { "type": "string", "description": "Full title of the standard" },
+            "date":   { "type": "string", "description": "Publication date of the standard, e.g. \"2015-04\"" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "global_values": {
+      "type": "object",
+      "description": "Global references (e.g. Cn, Icc, Uc etc.)",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value", "unit"],
+        "properties": {
+          "value": { "type": "number" },
+          "unit": { "type": "string", "enum": ["A", "V", "Ah"] },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+
+    "global_limits": {
+      "type": "object",
+      "properties": {
+        "max_voltage": {
+          "type": "object",
+          "required": ["value", "unit"],
+          "properties": {
+            "value": { "type": "number" },
+            "unit":  { "type": "string", "enum": ["V", "mV"] }
+          }
+        },
+        "max_current": {
+          "type": "object",
+          "required": ["value", "unit"],
+          "properties": {
+            "value": { "type": "number" },
+            "unit":  { "type": "string", "enum": ["A", "mA"] }
+          }
+        },
+        "max_temperature": {
+          "type": "object",
+          "required": ["value", "unit"],
+          "properties": {
+            "value": { "type": "number" },
+            "unit":  { "type": "string", "enum": ["degC"] }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Step ID as integer, e.g. 1, 2, 3 (no leading zeros)"
+          },
+
+          "level": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Logical level for beg/cyc steps"
+          },
+
+          "type": {
+            "type": "string",
+            "enum": ["rest", "discharge", "charge", "begin", "cycle", "sub", "goto", "set"]
+          },
+
+          "temperature": {
+            "type": "object",
+            "required": ["value", "unit"],
+            "properties": {
+              "value": { "type": "number" },
+              "unit": {
+                "type": "string",
+                "enum": ["degC"]
+              },
+              "medium": {
+                "type": "string",
+                "enum": ["air", "water"],
+                "description": "Temperature medium surrounding the battery"
+              }
+            },
+            "additionalProperties": true
+          },
+
+          "duration": {
+            "type": "object",
+            "required": ["value", "unit"],
+            "properties": {
+              "value": { "type": "number" },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "s",
+                  "seconds",
+                  "min",
+                  "minutes",
+                  "h",
+                  "hours"
+                ]
+              }
+            },
+            "additionalProperties": true
+          },
+
+          "current": {
+            "type": "object",
+            "required": ["value", "unit"],
+            "properties": {
+              "value": {
+                "oneOf": [
+                  { "type": "number" },
+                  { "type": "string" }
+                ]
+              },
+              "unit": { "type": "string", "enum": ["A", "mA"] }
+            },
+            "additionalProperties": true
+          },
+
+          "voltage": {
+            "type": "object",
+            "required": ["value", "unit"],
+            "properties": {
+              "value": {
+                "oneOf": [
+                  { "type": "number" },
+                  { "type": "string" }
+                ]
+              },
+              "unit": { "type": "string", "enum": ["V", "mV"] }
+            },
+            "additionalProperties": true
+          },
+
+          "limit": {
+            "type": "object",
+            "properties": {
+              "logic": {
+                "type": "string",
+                "enum": ["OR", "AND"],
+                "default": "OR",
+                "description": "Logical combination of stop conditions: OR = stop on first condition met, AND = all conditions must be met"
+              },
+              "voltage": {
+                "type": "object",
+                "properties": {
+                  "operator": { "type": "string", "enum": ["less_than", "greater_than", "equal_to", "less_than_or_equal", "greater_than_or_equal"] },
+                  "value":    { "type": "number" },
+                  "unit":     { "type": "string", "enum": ["V", "mV"] }
+                },
+                "additionalProperties": true
+              },
+              "time": {
+                "type": "object",
+                "properties": {
+                  "operator": { "type": "string", "enum": ["less_than", "greater_than", "equal_to", "less_than_or_equal", "greater_than_or_equal"] },
+                  "value":    { "type": "number" },
+                  "unit":     { "type": "string", "enum": ["s", "seconds", "min", "minutes", "h", "hours"] }
+                },
+                "additionalProperties": true
+              },
+              "charge": {
+                "type": "object",
+                "description": "Stop condition based on accumulated charge (Ah) during the step. Use operator: greater_than_or_equal to implement charge ratio CR = 2·Q_cha/Cn ≥ CR_min, equivalent to Q_cha ≥ CR_min·Cn/2. Example: CR ≥ 1.08 → Q_cha ≥ 0.54·Cn. Note: tracks per-step charge only; cumulative tracking across steps requires external logic.",
+                "properties": {
+                  "operator": { "type": "string", "enum": ["less_than", "greater_than", "equal_to", "less_than_or_equal", "greater_than_or_equal"] },
+                  "value": {
+                    "oneOf": [
+                      { "type": "number" },
+                      { "type": "string", "description": "Expression referencing a global_values key, e.g. \"Q_CR_min\"" }
+                    ]
+                  },
+                  "unit": { "type": "string", "enum": ["Ah", "mAh"] }
+                },
+                "additionalProperties": true
+              },
+              "cumulative_charge": {
+                "type": "object",
+                "description": "Stop condition based on the sum of charged capacity (Ah) across an explicit list of steps. The list must include the current step. Earlier steps must already be completed; their charged capacity is read from the measurement log. Example: steps 03+04 combined must reach Q_CR_min for CR ≥ 1.08.",
+                "required": ["steps", "operator", "value", "unit"],
+                "properties": {
+                  "steps": {
+                    "type": "array",
+                    "description": "Explicit list of step IDs whose charged capacity is summed. Must include the ID of the current step. Non-consecutive step IDs are allowed.",
+                    "items": { "type": "integer", "minimum": 1 },
+                    "minItems": 2,
+                    "uniqueItems": true
+                  },
+                  "operator": { "type": "string", "enum": ["less_than", "greater_than", "equal_to", "less_than_or_equal", "greater_than_or_equal"] },
+                  "value": {
+                    "oneOf": [
+                      { "type": "number" },
+                      { "type": "string", "description": "Expression referencing a global_values key, e.g. \"Q_CR_min\"" }
+                    ]
+                  },
+                  "unit": { "type": "string", "enum": ["Ah", "mAh"] }
+                },
+                "additionalProperties": true
+              },
+              "goto": {
+                "type": "object",
+                "required": ["target_id"],
+                "properties": {
+                  "target_id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Step ID to jump to when the limit condition is met. If omitted, execution continues with the next step."
+                  },
+                  "comment": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          },
+
+          "comment": { "type": "string" },
+
+          "wait": {
+            "type": "boolean",
+            "default": false,
+            "description": "Used in set steps. false (default): setpoint is sent and the sequence continues immediately. true: sequence waits until the climate chamber / water basin has reached the temperature setpoint before continuing."
+          },
+
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of loop repetitions – used in cyc steps to specify how many times the loop body is repeated"
+          },
+
+          "name": {
+            "type": "string",
+            "description": "Name of the sub-sequence to call – used in sub steps, e.g. \"PP1\", \"TLOOP\""
+          },
+
+          "target_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Target step ID to jump to – used in goto steps"
+          },
+
+          "result": {
+            "type": "array",
+            "description": "List of measurement results to be recorded at this step",
+            "items": {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name":        { "type": "string", "description": "Result variable name, e.g. \"U_0\", \"U_2s_1\"" },
+                "description": { "type": "string", "description": "Human-readable description of the result" },
+                "at": {
+                  "type": "object",
+                  "description": "Point in time at which the value is recorded",
+                  "required": ["value", "unit"],
+                  "properties": {
+                    "value": { "type": "number" },
+                    "unit":  { "type": "string", "enum": ["s", "seconds", "min", "minutes", "h", "hours"] }
+                  }
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "enum": ["begin"] } }
+            },
+            "then": {
+              "required": ["level", "comment"],
+              "not": { "required": ["temperature"] },
+              "description": "begin steps mark the start of a loop – only level and comment are required, temperature is not allowed"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["cycle"] } }
+            },
+            "then": {
+              "required": ["level", "count"],
+              "description": "cycle steps mark the end of a loop – level and count (number of repetitions) are required"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["sub"] } }
+            },
+            "then": {
+              "required": ["name"],
+              "not": { "required": ["temperature"] },
+              "description": "sub steps call a named sub-sequence – only name is required, temperature is not allowed"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["goto"] } }
+            },
+            "then": {
+              "required": ["target_id"],
+              "not": { "required": ["temperature"] },
+              "description": "goto steps jump unconditionally to the step with the given target_id – temperature is not allowed"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["set"] } }
+            },
+            "then": {
+              "required": ["temperature"],
+              "not": { "required": ["duration"] },
+              "description": "set steps change the temperature – only temperature (and optional wait/comment) are required; duration, current, voltage and limit are not applicable"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["rest", "discharge", "charge"] } }
+            },
+            "then": {
+              "required": ["temperature"],
+              "description": "Operational steps require a temperature specification"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["rest"] } }
+            },
+            "then": {
+              "required": ["duration"],
+              "description": "rest steps require a duration"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["charge"] } }
+            },
+            "then": {
+              "anyOf": [
+                { "required": ["duration"], "description": "Fixed-duration charge (controlled by time)" },
+                { "required": ["limit"],    "description": "Condition-controlled charge (stop on current threshold)" }
+              ],
+              "description": "charge steps require duration, limit, or both (duration = nominal charge time, limit = early-stop condition e.g. tail current)"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["discharge"] } }
+            },
+            "then": {
+              "allOf": [
+                {
+                  "anyOf": [
+                    { "required": ["duration"], "description": "Fixed-duration discharge (controlled by time)" },
+                    { "required": ["limit"],    "description": "Condition-controlled discharge (stop on voltage/current threshold)" }
+                  ]
+                },
+                {
+                  "anyOf": [
+                    { "required": ["current"], "description": "CC discharge: constant current, no voltage setpoint" },
+                    { "required": ["voltage"], "description": "CV discharge: constant voltage, no current setpoint" }
+                  ],
+                  "description": "discharge steps require either current (CC) or voltage (CV)"
+                }
+              ],
+              "description": "discharge steps require duration or limit, and either current (CC) or voltage (CV)"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "not": { "enum": ["discharge", "charge", "rest"] } } }
+            },
+            "then": {
+              "properties": { "result": false },
+              "description": "result is only allowed on discharge, charge and rest steps"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "not": { "enum": ["charge", "discharge"] } } }
+            },
+            "then": {
+              "properties": { "voltage": false },
+              "description": "voltage is only allowed on charge and discharge steps"
+            }
+          }
+        ],
+
+        "additionalProperties": true
+      }
+    }
+  },
+
+  "additionalProperties": true
+}

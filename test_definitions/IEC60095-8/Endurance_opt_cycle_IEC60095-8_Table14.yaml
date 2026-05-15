@@ -1,0 +1,132 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "Endurance_optional_cycle_test"
+  version: "1.0.0"
+  description: "Optional endurance cycle test according to IEC 60095-8 Table 14"
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 14"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  Icc:
+    value: 360
+    unit: "A"
+    description: "Cold cranking current / CCA (example value – adjust to actual battery specification)"
+  I_cyc:
+    value: 25
+    unit: "A"
+    description: "Cycling test current (25 ± 0.1 A as per standard)"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – BEGIN inner loop: ~100 h cycling (429 cycles × 840 s ≈ 100.1 h)
+  # Note: standard specifies (100 +12/−0) h total; 429 × (240 s + 600 s) = 360 360 s ≈ 100.1 h
+  - id: 1
+    type: begin
+    level: 1
+    comment: "Begin inner loop – 429 cycles × 840 s ≈ 100 h cycling (standard: 100 +12/−0 h)"
+
+  # Step 02 – DCH (240 ± 1) s at I_cyc – discharge 6000 As
+  - id: 2
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "I_cyc"
+      unit: "A"
+    duration:
+      value: 240
+      unit: "s"
+    comment: "Discharge 6000 As at 25 A for 240 s (tolerance ± 1 s per standard)"
+
+  # Step 03 – CHA (600 ± 1) s at 14.80 V / I_cyc
+  - id: 3
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 14.80
+      unit: "V"
+    current:
+      value: "I_cyc"
+      unit: "A"
+    duration:
+      value: 600
+      unit: "s"
+    comment: "Recharge at 14.80 V / 25 A for 600 s (tolerance ± 1 s, voltage ± 0.03 V per standard)"
+
+  # Step 04 – CYCLE: return to begin (step 01), 429 repetitions ≈ 100 h
+  - id: 4
+    type: cycle
+    level: 1
+    count: 429
+    comment: "End inner loop – return to begin (step 01); 429 repetitions × 840 s ≈ 100.1 h"
+
+  # Step 05 – PAU 40°C, min 65 h max 70 h – rest after cycling block
+  - id: 5
+    type: rest
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 65
+      unit: "h"
+    comment: "Rest after cycling block – min 65 h, max 70 h (minimum value used)"
+
+  # Step 06 – DCH 30 s at Icc – SOF performance test
+  - id: 6
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "Icc"
+      unit: "A"
+    duration:
+      value: 30
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 7.2
+        unit: "V"
+    comment: "SOF performance test at Icc for 30 s; stop if voltage drops below 7.2 V"
+    result:
+      - name: "U_30s"
+        description: "Voltage after 30 s discharge"
+        at:
+          value: 30
+          unit: "s"
+
+  # Step 07 – GOTO step 01 – restart cycling block
+  # Note: original table specifies "Restart at Step 02" (CHA step); represented here as restart
+  # from begin (step 01) to preserve loop structure. Test terminates when battery fails SOF
+  # criterion (U_30s drops below threshold) – termination condition is external to NEXFTS.
+  - id: 7
+    type: goto
+    target_id: 1
+    comment: "Restart cycling from begin (step 01) – test terminates on battery failure (external criterion)"
+

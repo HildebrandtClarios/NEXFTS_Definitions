@@ -1,0 +1,184 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "PPC_BOL_categories_1_2_3"
+  version: "1.0.0"
+  description: "Power Performance Characteristics (PPC) at Beginning of Life (BOL) – 
+                Categories 1, 2 and 3 according to IEC 60095-8 Table 3"
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 3"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – PP1 or PP2 at 25°C, 100% SOC
+  - id: 1
+    type: sub
+    name: "PP1"
+    comment: "PPC Procedure at 25°C, 100% SOC – PP1 (Table 9) is used; 
+              PP2 (Table 10) may be used alternatively"
+
+  # Step 02 – DCH at 25°C, 4 h – discharge by 20% Cn
+  - id: 2
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 4
+      unit: "h"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Discharge by 20% of Cn in 4 h; stop if voltage drops below 10.5 V"
+
+  # Step 03 – PAU at 25°C, min 8 h max 48 h – relaxation before cooling
+  - id: 3
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 8
+      unit: "h"
+    comment: "Relaxation before cooling – min 8 h, max 48 h (minimum value used)"
+
+  # Step 04 – SET -18°C – command climate chamber to cool down
+  - id: 4
+    type: set
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    wait: false
+    comment: "Command climate chamber to cool to -18°C; soak follows in next step"
+
+  # Step 05 – PAU at -18°C, min 24 h max 48 h – soak to test temperature
+  - id: 5
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 24
+      unit: "h"
+    comment: "Soak at -18°C – min 24 h, max 48 h (minimum value used)"
+
+  # Step 06 – PP1 at -18°C, partial SOC
+  - id: 6
+    type: sub
+    name: "PP1"
+    comment: "PPC Procedure at -18°C, partial SOC – PP1 (Table 9) is used; PP2 (Table 10) may be used alternatively"
+
+  # Step 07 – SET 25°C – command climate chamber to warm up
+  - id: 7
+    type: set
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    wait: false
+    comment: "Command climate chamber to warm back to 25°C; soak follows in next step"
+
+  # Step 08 – PAU at 25°C, min 16 h max 48 h – soak back to room temperature
+  - id: 8
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 16
+      unit: "h"
+    comment: "Soak back to room temperature – min 16 h, max 48 h (minimum value used)"
+
+  # Step 09 – DCH at 25°C, 6 h – discharge by additional 30% Cn (total 50% Cn in 10 h combined with step 02)
+  - id: 9
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 6
+      unit: "h"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Discharge by additional 30% Cn in 6 h (total 50% Cn in 10 h combined with step 02); stop if voltage drops below 10.5 V"
+
+  # Step 10 – PAU at 25°C, min 8 h max 48 h – relaxation before cooling
+  - id: 10
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 8
+      unit: "h"
+    comment: "Relaxation before cooling – min 8 h, max 48 h (minimum value used)"
+
+  # Step 11 – SET -18°C – command climate chamber to cool down
+  - id: 11
+    type: set
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    wait: false
+    comment: "Command climate chamber to cool to -18°C; soak follows in next step"
+
+  # Step 12 – PAU at -18°C, min 24 h max 48 h – soak to test temperature
+  - id: 12
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 24
+      unit: "h"
+    comment: "Soak at -18°C – min 24 h, max 48 h (minimum value used)"
+
+  # Step 13 – PP1 at -18°C, partial SOC
+  - id: 13
+    type: sub
+    name: "PP1"
+    comment: "PPC Procedure at -18°C, partial SOC – PP1 (Table 9) is used; PP2 (Table 10) may be used alternatively"
+

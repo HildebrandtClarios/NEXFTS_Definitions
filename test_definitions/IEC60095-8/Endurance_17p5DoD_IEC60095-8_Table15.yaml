@@ -1,0 +1,179 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "Endurance_17p5pct_DoD"
+  version: "1.0.0"
+  description: "Endurance 17.5% DoD – Cycling units according to IEC 60095-8 Table 15"
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 15"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+  Uc:
+    value: 14.4
+    unit: "V"
+    description: "Charging voltage according to IEC 60095-1 Table 1 (example: 14.4 V – adjust per battery specification)"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – DCH 2.5 h at 4·In – pre-discharge (establish initial state)
+  - id: 1
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "4 * In"
+      unit: "A"
+    duration:
+      value: 2.5
+      unit: "h"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.0
+        unit: "V"
+    comment: "Pre-discharge at 4·In; stop if voltage drops below 10.0 V"
+    result:
+      - name: "U_EOS_01"
+        description: "Voltage at end of pre-discharge step (UEOS)"
+
+  # Step 02 – BEGIN loop: repeat steps 03–04 for 85 cycles
+  # Additional stop condition: stop if discharge voltage U ≤ 10 V (covered by limit in step 04).
+  - id: 2
+    type: begin
+    level: 1
+    comment: "Begin loop – repeat steps 03–04 for 85 cycles (stop early if U ≤ 10 V in step 04)"
+
+  # Step 03 – CHA 2400 s at 14.4 V / 7·In – constant voltage charge
+  - id: 3
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 14.4
+      unit: "V"
+    current:
+      value: "7 * In"
+      unit: "A"
+    duration:
+      value: 2400
+      unit: "s"
+    comment: "Constant voltage charge at 14.4 V / 7·In for 2400 s"
+
+  # Step 04 – DCH 1800 s at 7·In – discharge cycle
+  - id: 4
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "7 * In"
+      unit: "A"
+    duration:
+      value: 1800
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.0
+        unit: "V"
+    comment: "Discharge cycle at 7·In for 1800 s; stop if voltage drops below 10.0 V"
+    result:
+      - name: "U_EOS_04"
+        description: "Voltage at end of discharge step (UEOS) for each cycle"
+
+  # Step 05 – CYCLE: return to begin (step 02), 85 repetitions
+  - id: 5
+    type: cycle
+    level: 1
+    count: 85
+    comment: "End loop – return to begin (step 02); 85 repetitions"
+
+  # Step 06 – CHA 18 h at Uc / 2·In – equalization charge
+  - id: 6
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "2 * In"
+      unit: "A"
+    duration:
+      value: 18
+      unit: "h"
+    comment: "Equalization charge at Uc / 2·In for 18 h"
+    result:
+      - name: "Q_CHA_equalization"
+        description: "Recharged electrical charge during equalization (QCHA)"
+
+  # Step 07 – DCH at In – Ce capacity measurement (open discharge until voltage cutoff)
+  # No fixed duration: step runs until voltage drops below 10.5 V
+  - id: 7
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "In"
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Ce capacity discharge at In – runs until voltage drops below 10.5 V (no fixed duration)"
+    result:
+      - name: "Ce"
+        description: "Effective capacity Ce – total discharged capacity until voltage cutoff at 10.5 V"
+
+  # Step 08 – CHA 24 h at Uc / 5·In – recharge according to IEC 60095-1
+  - id: 8
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "h"
+    comment: "Recharge according to IEC 60095-1 at Uc / 5·In for 24 h"
+    result:
+      - name: "Q_CHA_recharge"
+        description: "Recharged electrical charge during recharge (QCHA)"
+

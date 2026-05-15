@@ -1,0 +1,187 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "PP1_procedure"
+  version: "1.0.0"
+  description: >
+    PPC Pulse Profile PP1 according to IEC 60095-8 Table 9.
+    This is a sub-procedure intended to be called from higher-level test sequences
+    (e.g. Tables 3, 4, 5, 6, 7, 8) at the required test temperature.
+    The temperature values used here are representative (-18°C); the actual test
+    temperature is established by the calling sequence via preceding soak (rest) steps.
+    PP1 uses currents relative to Icc (CCA current), in contrast to PP2 which uses
+    agreed fixed amplitudes I1 and I2.
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 9"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  Icc:
+    value: 360
+    unit: "A"
+    description: "Cold cranking current / CCA (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – PAU 1 min – initial rest / relaxation
+  # Note: temperature (x) is established by the calling sequence via a preceding soak step.
+  # -18°C is used here as the representative calling temperature.
+  - id: 1
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 1
+      unit: "min"
+    comment: "Initial rest before first base discharge – temperature set by calling sequence"
+
+  # Step 02 – DCH 5 s at In – first base discharge to establish condition for Rdc calculation
+  - id: 2
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 5
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "First base discharge – establish discharge condition for Rdc calculation; stop if voltage drops below 10.5 V"
+    result:
+      - name: "Ub1"
+        description: "Voltage after 5 s of first base discharge"
+        at:
+          value: 5
+          unit: "s"
+
+  # Step 03 – DCH 2 s at 0.2·Icc – first current-controlled pulse
+  - id: 3
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "0.2 * Icc"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 6.0
+        unit: "V"
+    comment: "First current-controlled pulse with amplitude 0.2 × Icc (relative to CCA); stop if voltage drops below 6 V"
+    result:
+      - name: "U2s1"
+        description: "Voltage after 2 s of first pulse"
+        at:
+          value: 2
+          unit: "s"
+
+  # Step 04 – PAU 10 min – relaxation (e.g. of internal temperature)
+  - id: 4
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 10
+      unit: "min"
+    comment: "Relaxation after first pulse (e.g. of internal temperature)"
+
+  # Step 05 – DCH 5 s at In – second base discharge
+  - id: 5
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 5
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Second base discharge; stop if voltage drops below 10.5 V"
+    result:
+      - name: "Ub2"
+        description: "Voltage after 5 s of second base discharge"
+        at:
+          value: 5
+          unit: "s"
+
+  # Step 06 – DCH 2 s at 0.4·Icc – second current-controlled pulse
+  - id: 6
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "0.4 * Icc"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 6.0
+        unit: "V"
+    comment: "Second current-controlled pulse with amplitude 0.4 × Icc; stop if voltage drops below 6 V"
+    result:
+      - name: "U2s2"
+        description: "Voltage after 2 s of second pulse"
+        at:
+          value: 2
+          unit: "s"
+
+  # Step 07 – PAU 10 min – final relaxation
+  - id: 7
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 10
+      unit: "min"
+    comment: "Final relaxation after second pulse"
+

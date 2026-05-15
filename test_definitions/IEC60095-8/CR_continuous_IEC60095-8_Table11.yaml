@@ -1,0 +1,317 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "CR_continuous_72h"
+  version: "1.0.0"
+  description: "Charge Recovery (CR) Test with continuous 72 h discharge phase according to IEC 60095-8 Table 11"
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 11"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – DCH 7.6 h at In – initial discharge part 1: establish partial SOC (38% Cn)
+  - id: 1
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 7.6
+      unit: "h"
+    comment: "Initial discharge part 1 (establish partial SOC) – discharge by 38% Cn at nominal conditions"
+    result:
+      - name: "Q_DCH_01"
+        description: "Discharged capacity in step 01"
+
+  # Step 02 – PAU 25°C, min 12 h max 48 h – rest before cooling
+  - id: 2
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 12
+      unit: "h"
+    comment: "Rest before cooling – min. 12 h, max. 48 h (minimum value used)"
+
+  # Step 03 – SET -18°C – command climate chamber to cool down
+  - id: 3
+    type: set
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    wait: false
+    comment: "Command climate chamber to cool to -18°C; soak follows in next step"
+
+  # Step 04 – PAU -18°C, min 20 h max 36 h – soak to test temperature
+  - id: 4
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 20
+      unit: "h"
+    comment: "Soak to test temperature – min. 20 h, max. 36 h (minimum value used)"
+
+  # Step 05 – DCH 72 h at 0.033·In – continuous quiescent drain (initial discharge part 2)
+  # Simulates continuous quiescent drain, e.g. approx. 100 mA for Cn = 60 Ah
+  # Discharges by 12% Cn at winter condition
+  - id: 5
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "0.033 * In"
+      unit: "A"
+    duration:
+      value: 72
+      unit: "h"
+    comment: "Initial discharge part 2 – continuous quiescent drain (0.033 × In ≈ 100 mA for Cn = 60 Ah); discharge by 12% Cn at winter condition"
+    result:
+      - name: "Q_DCH_05"
+        description: "Charge balance of step 05"
+
+  # Step 06 – PAU 1 min – rest before SOF performance test
+  - id: 6
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 1
+      unit: "min"
+    comment: "Rest before SOF performance test"
+    result:
+      - name: "U_OC"
+        description: "Open circuit voltage after 1 min rest"
+
+  # Step 07 – DCH 10 s at 20·In – SOF performance test before charge
+  - id: 7
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 10
+      unit: "s"
+    comment: "SOF performance test before charge"
+    result:
+      - name: "U_10s_0"
+        description: "Voltage after 10 s discharge and 0 min total preceding charge time"
+        at:
+          value: 10
+          unit: "s"
+      - name: "Q_07"
+        description: "Charge balance of step 07"
+
+  # Step 08 – CHA 1 min at 15.0 V / 20·In – charge test: 1' total
+  - id: 8
+    type: charge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 15.0
+      unit: "V"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 1
+      unit: "min"
+    comment: "Charge test: 1' total"
+    result:
+      - name: "Q_1min"
+        description: "Charge balance of steps 07–08"
+
+  # Step 09 – DCH 10 s at 20·In – SOF performance test after 1 min
+  - id: 9
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 10
+      unit: "s"
+    comment: "SOF performance test after 1 min"
+    result:
+      - name: "U_10s_1min"
+        description: "Voltage after 10 s discharge and 1 min total preceding charge time"
+        at:
+          value: 10
+          unit: "s"
+
+  # Step 10 – CHA 9 min at 15.0 V / 20·In – charge test: 10' total
+  - id: 10
+    type: charge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 15.0
+      unit: "V"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 9
+      unit: "min"
+    comment: "Charge test: 10' total"
+    result:
+      - name: "Q_10min"
+        description: "Charge balance of steps 07–10"
+
+  # Step 11 – DCH 10 s at 20·In – SOF performance test after 10 min
+  - id: 11
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 10
+      unit: "s"
+    comment: "SOF performance test after 10 min"
+    result:
+      - name: "U_10s_10min"
+        description: "Voltage after 10 s discharge and 10 min total preceding charge time"
+        at:
+          value: 10
+          unit: "s"
+
+  # Step 12 – CHA 20 min at 15.0 V / 20·In – charge test: 30' total
+  - id: 12
+    type: charge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 15.0
+      unit: "V"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 20
+      unit: "min"
+    comment: "Charge test: 30' total"
+    result:
+      - name: "Q_30min"
+        description: "Charge balance of steps 07–12"
+
+  # Step 13 – DCH 10 s at 20·In – SOF performance test after 30 min
+  - id: 13
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 10
+      unit: "s"
+    comment: "SOF performance test after 30 min"
+    result:
+      - name: "U_10s_30min"
+        description: "Voltage after 10 s discharge and 30 min total preceding charge time"
+        at:
+          value: 10
+          unit: "s"
+
+  # Step 14 – CHA 90 min at 15.0 V / 20·In – charge test: 2 h total
+  - id: 14
+    type: charge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 15.0
+      unit: "V"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 90
+      unit: "min"
+    comment: "Charge test: 2 h total"
+    result:
+      - name: "Q_120min"
+        description: "Charge balance of steps 07–14"
+
+  # Step 15 – DCH 120 s at 20·In – SOF performance test after 2 h
+  - id: 15
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "20 * In"
+      unit: "A"
+    duration:
+      value: 120
+      unit: "s"
+    comment: "SOF performance test after 2 hours"
+    result:
+      - name: "U_10s_120min"
+        description: "Voltage after 10 s discharge and 120 min total preceding charge time"
+        at:
+          value: 10
+          unit: "s"
+      - name: "U_120s_120min"
+        description: "Voltage after 120 s discharge and 120 min total preceding charge time"
+        at:
+          value: 120
+          unit: "s"
+

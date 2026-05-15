@@ -1,0 +1,140 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "Endurance_50pct_DoD"
+  version: "1.0.0"
+  description: "Endurance 50% DoD – Cycling part according to IEC 60095-8 Table 13"
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 13"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+  Uc:
+    value: 15.6
+    unit: "V"
+    description: "Charge voltage – 15.6 V for flooded batteries (default); use 14.4 V for VRLA batteries"
+  Q_CR_min:
+    value: 32.4
+    unit: "Ah"
+    description: "Minimum recharged capacity for charge ratio CR ≥ 1.08: Q_CR_min = CR_min × Cn / 2 = 1.08 × 60 Ah / 2 = 32.4 Ah – update when Cn changes"
+
+global_limits:
+  max_voltage:
+    value: 18.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – BEGIN loop: repeat steps 02–04 up to 360 times
+  - id: 1
+    type: begin
+    level: 1
+    comment: "Begin loop – repeat steps 02–04 up to 360 times"
+
+  # Step 02 – DCH 2 h at 5·In – discharge 50% DoD
+  - id: 2
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "h"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Discharge 50% DoD at 5·In; stop if voltage drops below 10.5 V"
+    result:
+      - name: "U_DCH"
+        description: "Voltage after 2 h discharge for each cycle"
+        at:
+          value: 2
+          unit: "h"
+
+  # Step 03 – CHA ≤ 5 h at Uc / 5·In – main recharge
+  # Stop conditions (OR logic): CR ≥ 1.08  ↔  Q_cha ≥ Q_CR_min = 0.54·Cn  OR  t ≥ 5 h
+  # Note: Uc = 15.6 V for flooded (default), 14.4 V for VRLA – adjust global_values.Uc accordingly.
+  # Note: charge limit tracks per-step charge; if CR is already met in this step, step 04 runs briefly.
+  - id: 3
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 5
+      unit: "h"
+    limit:
+      charge:
+        operator: greater_than_or_equal
+        value: "Q_CR_min"
+        unit: "Ah"
+    comment: "Main recharge at Uc / 5·In; stop when CR ≥ 1.08 (Q_cha ≥ Q_CR_min = 32.4 Ah) OR t ≥ 5 h (duration)"
+    result:
+      - name: "Q_CHA_03"
+        description: "Recharged capacity in step 03"
+
+  # Step 04 – CHA ≤ 1 h at 18.0 V / 1·In – constant-current finish charge
+  # Stop conditions (OR logic): cumulative CR ≥ 1.08 over steps 03+04  OR  t ≥ 1 h
+  # cumulative_charge sums Q_CHA from step 03 (already completed) + step 04 (accumulating).
+  # If step 03 already satisfied Q_CR_min alone, step 04 will stop immediately.
+  - id: 4
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "air"
+    voltage:
+      value: 18.0
+      unit: "V"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 1
+      unit: "h"
+    limit:
+      cumulative_charge:
+        steps: [3, 4]
+        operator: greater_than_or_equal
+        value: "Q_CR_min"
+        unit: "Ah"
+    comment: "Constant-current finish charge at 18.0 V / 1·In; stop when cumulative Q (steps 03+04) ≥ Q_CR_min = 32.4 Ah (CR ≥ 1.08) OR t ≥ 1 h (duration)"
+    result:
+      - name: "Q_CHA_04"
+        description: "Recharged capacity in step 04 (constant-current finish)"
+
+  # Step 05 – CYCLE: return to begin (step 01), up to 360 repetitions
+  - id: 5
+    type: cycle
+    level: 1
+    count: 360
+    comment: "End loop – return to begin (step 01); up to 360 repetitions (test may end earlier on battery failure)"
+

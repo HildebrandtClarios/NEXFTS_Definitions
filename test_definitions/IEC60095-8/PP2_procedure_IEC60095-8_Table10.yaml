@@ -1,0 +1,143 @@
+nexfts_schema_version: "0.1.1"
+
+metadata:
+  name: "PP2_procedure"
+  version: "1.0.0"
+  description: >
+    PPC Procedure Option PP2 according to IEC 60095-8 Table 10.
+    This is a sub-procedure intended to be called from higher-level test sequences
+    (e.g. Tables 3, 4, 5, 6, 7, 8) at the required test temperature.
+    The temperature values used here are representative; the actual test temperature
+    is established by the calling sequence via preceding soak (rest) steps.
+    The currents I1 and I2 are agreed values between 0.1·Icc and 0.5·Icc –
+    the example values below must be adjusted to the actual battery specification.
+  standard:
+    name: "IEC 60095-8"
+    title: "Lead-acid starter batteries – Part 8: Batteries for micro-cycle applications"
+    date: "2025-01"
+    clause: "Table 10"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  Icc:
+    value: 360
+    unit: "A"
+    description: "Cold cranking current (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+  I1:
+    value: 72
+    unit: "A"
+    description: "First agreed current amplitude for PP2 pulse (example: 0.2 × Icc); shall be between 0.1·Icc and 0.5·Icc"
+  I2:
+    value: 144
+    unit: "A"
+    description: "Second agreed current amplitude for PP2 pulse (example: 0.4 × Icc); shall be between 0.1·Icc and 0.5·Icc"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 500
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  # Step 01 – PAU 1 min – initial rest / relaxation
+  # Note: temperature (x) is established by the calling sequence via a preceding soak step.
+  # -18°C is used here as the representative calling temperature.
+  - id: 1
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 1
+      unit: "min"
+    comment: "Initial rest before first pulse – temperature set by calling sequence"
+
+  # Step 02 – DCH 2 s at I1 – first current-controlled pulse; voltage limit > 6 V
+  - id: 2
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "I1"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 6.0
+        unit: "V"
+    comment: "First current-controlled pulse with agreed amplitude I1; stop if voltage drops below 6 V"
+    result:
+      - name: "U2s1"
+        description: "Voltage after 2 s of first pulse"
+        at:
+          value: 2
+          unit: "s"
+
+  # Step 03 – PAU 10 min – relaxation (e.g. of internal temperature)
+  - id: 3
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 10
+      unit: "min"
+    comment: "Relaxation after first pulse (e.g. of internal temperature)"
+
+  # Step 04 – DCH 2 s at I2 – second current-controlled pulse; voltage limit > 6 V
+  - id: 4
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "I2"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 6.0
+        unit: "V"
+    comment: "Second current-controlled pulse with agreed amplitude I2; stop if voltage drops below 6 V"
+    result:
+      - name: "U2s2"
+        description: "Voltage after 2 s of second pulse"
+        at:
+          value: 2
+          unit: "s"
+
+  # Step 05 – PAU 10 min – final relaxation
+  - id: 5
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 10
+      unit: "min"
+    comment: "Final relaxation after second pulse"
+
