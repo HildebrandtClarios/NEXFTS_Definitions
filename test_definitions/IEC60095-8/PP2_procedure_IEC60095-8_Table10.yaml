@@ -1,4 +1,4 @@
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 
 metadata:
   name: "PP2_procedure"
@@ -140,4 +140,3 @@ steps:
       value: 10
       unit: "min"
     comment: "Final relaxation after second pulse"
-

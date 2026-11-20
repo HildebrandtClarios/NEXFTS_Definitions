@@ -1,4 +1,4 @@
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 
 metadata:
   name: "Endurance_optional_cycle_test"
@@ -129,4 +129,3 @@ steps:
     type: goto
     target_id: 1
     comment: "Restart cycling from begin (step 01) – test terminates on battery failure (external criterion)"
-

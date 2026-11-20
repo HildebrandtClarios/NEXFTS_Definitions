@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "nexfts.schema.json/0.1.1",
+  "$id": "nexfts.schema.json/0.3.0",
   "title": "NEXFTS – Neutral Exchange Format for Battery Test Sequences",
-  "description": "Schema for NEXFTS test definition files (version 0.1.1). NEXFTS = Neutral Exchange Format for Battery Test Sequences.",
+  "description": "Schema for NEXFTS test definition files (version 0.3.0). NEXFTS = Neutral Exchange Format for Battery Test Sequences.",
   "type": "object",
   "required": [
     "nexfts_schema_version",
@@ -48,8 +48,13 @@
         "type": "object",
         "required": ["value", "unit"],
         "properties": {
-          "value": { "type": "number" },
-          "unit": { "type": "string", "enum": ["A", "V", "Ah"] },
+          "value": {
+            "oneOf": [
+              { "type": "number" },
+              { "type": "string", "description": "Expression referencing other global_values keys, e.g. \"(0.02 * Cn - 0.083) / 48 * 3600\"" }
+            ]
+          },
+          "unit": { "type": "string", "enum": ["A", "V", "Ah", "s", "seconds", "min", "minutes", "h", "hours"] },
           "description": { "type": "string" }
         },
         "additionalProperties": true
@@ -109,7 +114,7 @@
 
           "type": {
             "type": "string",
-            "enum": ["rest", "discharge", "charge", "begin", "cycle", "sub", "goto", "set"]
+            "enum": ["rest", "discharge", "charge", "begin", "cycle", "sub", "goto", "set", "pause"]
           },
 
           "temperature": {
@@ -134,7 +139,12 @@
             "type": "object",
             "required": ["value", "unit"],
             "properties": {
-              "value": { "type": "number" },
+              "value": {
+                "oneOf": [
+                  { "type": "number" },
+                  { "type": "string" }
+                ]
+              },
               "unit": {
                 "type": "string",
                 "enum": [
@@ -349,6 +359,16 @@
               "required": ["target_id"],
               "not": { "required": ["temperature"] },
               "description": "goto steps jump unconditionally to the step with the given target_id – temperature is not allowed"
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "enum": ["pause"] } }
+            },
+            "then": {
+              "required": ["comment"],
+              "not": { "required": ["temperature"] },
+              "description": "pause steps interrupt the test for manual operations – only comment is required; temperature, duration, current, voltage and limit are not applicable"
             }
           },
           {

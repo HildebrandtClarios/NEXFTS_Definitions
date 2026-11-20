@@ -1,9 +1,9 @@
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 
 metadata:
   name: "PPC_BOL_categories_1_2_3"
   version: "1.0.0"
-  description: "Power Performance Characteristics (PPC) at Beginning of Life (BOL) – 
+  description: "Power Performance Characteristics (PPC) at Beginning of Life (BOL) –
                 Categories 1, 2 and 3 according to IEC 60095-8 Table 3"
   standard:
     name: "IEC 60095-8"
@@ -37,7 +37,7 @@ steps:
   - id: 1
     type: sub
     name: "PP1"
-    comment: "PPC Procedure at 25°C, 100% SOC – PP1 (Table 9) is used; 
+    comment: "PPC Procedure at 25°C, 100% SOC – PP1 (Table 9) is used;
               PP2 (Table 10) may be used alternatively"
 
   # Step 02 – DCH at 25°C, 4 h – discharge by 20% Cn
@@ -181,4 +181,3 @@ steps:
     type: sub
     name: "PP1"
     comment: "PPC Procedure at -18°C, partial SOC – PP1 (Table 9) is used; PP2 (Table 10) may be used alternatively"
-

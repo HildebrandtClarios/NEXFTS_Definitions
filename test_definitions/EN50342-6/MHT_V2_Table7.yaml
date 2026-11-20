@@ -1,0 +1,415 @@
+nexfts_schema_version: "0.3.0"
+
+metadata:
+  name: "MHT_V2"
+  version: "1.0.0"
+  description: "Test sequence MHT V2 – Micro-Hybrid Test according to Table 7. Battery in water bath at 40 ± 2 °C according to EN 50342-1:2015 5.3.2."
+  standard:
+    name: "EN 50342-6:2025"
+    title: "Lead-acid starter batteries - Part 6: Batteries for micro-cycle applications "
+    clause: "Table 7"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+  Uc:
+    value: 14.4
+    unit: "V"
+    description: "Charging voltage – 15.6 V for flooded and enhanced flooded batteries, 14.4 V for VRLA batteries (adjust value to battery type)"
+  tDCH:
+    value: "(0.02 * Cn - 0.083) / 48 * 3600"
+    unit: "s"
+    description: "Low rate discharge duration in the micro-cycle: tDCH = (0.02 * Cn - 0.083 Ah) / 48 A * 3600 s/h"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 300
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+
+steps:
+  # ──────────────────────────────────────────────────────────────────────
+  # Initial tests
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Step 01 – CHA 16 h at Uc / 5·In – Charge
+  - id: 1
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 16
+      unit: "h"
+    comment: "Charge at Uc / 5·In for 16 h"
+    result:
+      - name: "QCHA_01"
+        description: "Charged electrical charge (QCHA)"
+
+  # Step 02 – DCH at In until U < 10.5 V – Capacity check
+  - id: 2
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Capacity check at In – discharge until voltage drops below 10.5 V"
+    result:
+      - name: "Ce_40C"
+        description: "Effective capacity Ce at 40 °C"
+
+  # Step 03 – CHA 24 h at Uc / 5·In – Charge
+  - id: 3
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "h"
+    comment: "Charge at Uc / 5·In for 24 h"
+    result:
+      - name: "QCHA_03"
+        description: "Charged electrical charge (QCHA)"
+
+  # Step 10 – PAU 3 h – Relaxation
+  - id: 4
+    type: rest
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 3
+      unit: "h"
+    comment: "Relaxation 3 h"
+    result:
+      - name: "U_3h_04"
+        description: "Voltage after 3 h rest"
+        at:
+          value: 3
+          unit: "h"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Set battery SoC to 85 %
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Step 11 – DCH 3 h at Ce/20 h (≈ In) until U < 10.5 V – Discharge to 85 % of Ce@40°C
+  - id: 5
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 3
+      unit: "h"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Discharge to 85 % of Ce@40°C at Ce/20 h (≈ In) for 3 h; stop if voltage drops below 10.5 V"
+    result:
+      - name: "QDCH_05"
+        description: "Discharged electrical charge (QDCH)"
+
+  # Step 12 – PAU 3 h – Relaxation
+  - id: 6
+    type: rest
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 3
+      unit: "h"
+    comment: "Relaxation 3 h"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Micro-cycle sequence
+  #
+  # Generally, it is not intended to test batteries until failure.
+  # If testing until failure needs to be carried out for development
+  # purposes, cycling (steps 20–25) can be continued until voltage
+  # falls below 9.5 V in step 23 and finalized with check-up sequence
+  # starting from step 30.
+  #
+  # Implementation: step 12 (orig. 23) carries a limit.goto that jumps
+  # to step 16 (orig. 30, check-up) when U < 9.5 V.
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Step 26 – RPT: Run steps 20–25 80 times (outer loop)
+  - id: 7
+    type: begin
+    level: 1
+    comment: "Begin outer loop – repeat steps 08–14 (orig. 20–25) for 80 cycles"
+
+  # Step 24 – RPT: Run steps 20–23 200 times (inner loop)
+  - id: 8
+    type: begin
+    level: 2
+    comment: "Begin inner loop – repeat steps 09–12 (orig. 20–23) for 200 micro-cycles"
+
+  # Step 20 – PAU 10 s – Relaxation
+  - id: 9
+    type: rest
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 10
+      unit: "s"
+    comment: "Relaxation 10 s"
+    result:
+      - name: "U_10s"
+        description: "Voltage after 10 s rest"
+        at:
+          value: 10
+          unit: "s"
+
+  # Step 21 – CHA (1 + tDCH) at 14.0 V / 100 A – Charge
+  - id: 10
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: 14.0
+      unit: "V"
+    current:
+      value: 100
+      unit: "A"
+    duration:
+      value: "1 + tDCH"
+      unit: "s"
+    comment: "Charge at 14.0 V / 100 A for (1 + tDCH) s"
+    result:
+      - name: "I_CHA_10"
+        description: "Current at end of charge (1 + tDCH)"
+      - name: "QCHA_10"
+        description: "Charged electrical charge (QCHA)"
+
+  # Step 22 – DCH tDCH at 48 A – Low rate discharge
+  - id: 11
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    current:
+      value: 48
+      unit: "A"
+    duration:
+      value: "tDCH"
+      unit: "s"
+    comment: "Low rate discharge at 48 A for tDCH s"
+    result:
+      - name: "U_DCH_11"
+        description: "Voltage at end of low rate discharge (tDCH)"
+      - name: "QDCH_11"
+        description: "Discharged electrical charge (QDCH)"
+
+  # Step 23 – DCH 1 s at 300 A, abort if U < 9.5 V → jump to check-up (step 16)
+  # NOTE: If voltage falls below 9.5 V, jump to step 30 (= id 16, check-up sequence)
+  - id: 12
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    current:
+      value: 300
+      unit: "A"
+    duration:
+      value: 1
+      unit: "s"
+    limit:
+      voltage:
+        operator: less_than
+        value: 9.5
+        unit: "V"
+      goto:
+        target_id: 16
+        comment: "If voltage falls below 9.5 V, jump to check-up sequence (step 30 = id 16)"
+    comment: "High rate discharge at 300 A for 1 s; abort and jump to check-up if U < 9.5 V"
+    result:
+      - name: "U_1s_12"
+        description: "Voltage at 1 s during high rate discharge"
+        at:
+          value: 1
+          unit: "s"
+      - name: "QDCH_12"
+        description: "Discharged electrical charge (QDCH)"
+      - name: "Rdyn_12"
+        description: "Dynamic internal resistance Rdyn"
+
+  # Step 24 – RPT: end of inner loop (steps 20–23, 200 times)
+  - id: 13
+    type: cycle
+    level: 2
+    count: 200
+    comment: "End inner loop – return to begin (step 08); 200 micro-cycle repetitions"
+
+  # Step 25 – PAU 3 h – Storage and cooling
+  # NOTE: Notification if voltage after 3 h is less than 12.5 V but no stop of cycling
+  - id: 14
+    type: rest
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 3
+      unit: "h"
+    comment: "Storage and cooling 3 h; notification if U(3 h) < 12.5 V (no stop of cycling)"
+    result:
+      - name: "U_3h_14"
+        description: "Voltage after 3 h rest – notify if < 12.5 V"
+        at:
+          value: 3
+          unit: "h"
+
+  # Step 26 – RPT: end of outer loop (steps 20–25, 80 times)
+  - id: 15
+    type: cycle
+    level: 1
+    count: 80
+    comment: "End outer loop – return to begin (step 07); 80 repetitions"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Check-up sequence
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Step 30 – PAU 12 h – Relaxation
+  - id: 16
+    type: rest
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 12
+      unit: "h"
+    comment: "Relaxation 12 h"
+
+  # Step 31 – DCH at In until U < 10.5 V – Remaining capacity
+  - id: 17
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Remaining capacity discharge at In – runs until voltage drops below 10.5 V"
+    result:
+      - name: "Ce_40C_17"
+        description: "Effective capacity Ce at 40 °C (remaining capacity)"
+
+  # Step 32 – CHA 24 h at Uc / 5·In – Charge according EN 50342-1:2015
+  - id: 18
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "h"
+    comment: "Charge according EN 50342-1:2015 at Uc / 5·In for 24 h"
+    result:
+      - name: "QCHA_18"
+        description: "Charged electrical charge (QCHA)"
+
+  # Step 33 – DCH at In until U < 10.5 V – Capacity check
+  - id: 19
+    type: discharge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    comment: "Capacity check at In – discharge until voltage drops below 10.5 V"
+    result:
+      - name: "Ce_40C_19"
+        description: "Effective capacity Ce at 40 °C"
+
+  # Step 34 – CHA 24 h at Uc / 5·In – Charge
+  - id: 20
+    type: charge
+    temperature:
+      value: 40
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "h"
+    comment: "Charge at Uc / 5·In for 24 h"
+    result:
+      - name: "QCHA_20"
+        description: "Charged electrical charge (QCHA)"

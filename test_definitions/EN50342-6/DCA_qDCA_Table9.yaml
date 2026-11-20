@@ -1,0 +1,184 @@
+nexfts_schema_version: "0.3.0"
+
+metadata:
+  name: "DCA_qDCA"
+  version: "1.0.0"
+  description: "DCA – Charge Acceptance qDCA procedure according to Table 9. Battery in water bath at 25 ± 2 °C according to EN 50342-1:2015, 5.3.2."
+  standard:
+    name: "EN 50342-6:2025"
+    title: "Lead-acid starter batteries - Part 6: Batteries for micro-cycle applications"
+    clause: "Table 9"
+
+# NOTE on Steps 21 and 27 (DCApp):
+#   The DCApp procedure is defined in clause 8.3.2.4.
+#   The average charge currents Ic and Id are calculated according to 8.3.2.5 and 8.3.2.6.
+#   Both Ic and Id are charge currents – the index "c" or "d" means
+#   "charge history" or "discharge history".
+#
+# NOTE on Step 23:
+#   For flooded batteries, a combination of constant voltage (CV) and constant current (CC)
+#   charging (with "unlimited" voltage) is applied. The given voltage limit of 18 V is meant
+#   as a safety limit. For VRLA: 14.8 V / 5·In (standard IU charge).
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity C20 (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+  Uc:
+    value: 14.8
+    unit: "V"
+    description: "Charging voltage – 16.0 V for flooded batteries, 14.8 V for VRLA batteries (adjust value to battery type, according to EN 50342-1:2015, 5.2)"
+
+global_limits:
+  max_voltage:
+    value: 18.0
+    unit: "V"
+  max_current:
+    value: 30
+    unit: "A"
+  max_temperature:
+    value: 40
+    unit: "degC"
+
+
+steps:
+  # ──────────────────────────────────────────────────────────────────────
+  # Charge acceptance tests – qDCA procedure
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Step 20 – PAU min 20 h / max 72 h – Rest phase
+  - id: 1
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 20
+      unit: "h"
+    result:
+      - name: "OCV"
+        description: "Open-circuit voltage after rest"
+    comment: "Rest phase min 20 h / max 72 h (step 20)"
+
+  # Step 21 – DCApp procedure acc. to 8.3.2.4
+  - id: 2
+    type: sub
+    name: "DCApp"
+    comment: "DCApp procedure acc. to 8.3.2.4 – result: Ic = integrated charge / 200 s (step 21)"
+
+  # Step 22 – CHA 12 h at Uc / 5·In
+  - id: 3
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 12
+      unit: "h"
+    comment: "Recharge – voltage Uc for flooded / VRLA (step 22)"
+
+  # Step 23 – CHA 4 h at 18.0 V (flooded) or 14.8 V (VRLA)
+  # For flooded: CV at 18 V (safety limit) + CC at 0.5·In ("unlimited" voltage)
+  # For VRLA: standard IU at 14.8 V / 5·In
+  - id: 4
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: 18.0
+      unit: "V"
+    current:
+      value: "0.5 * In"
+      unit: "A"
+    duration:
+      value: 4
+      unit: "h"
+    comment: "Recharge 4 h – flooded: 18.0 V (safety limit) / 0.5·In CC; VRLA: 14.8 V / 5·In (adjust voltage and current to battery type) (step 23)"
+
+  # Step 24 – PAU 1 h – Rest phase
+  - id: 5
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 1
+      unit: "h"
+    comment: "Rest phase (step 24)"
+
+  # Step 25 – DCH 2 h at In
+  - id: 6
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "h"
+    comment: "Discharge 2 h at In (step 25)"
+
+  # Step 26 – PAU 20 h – Rest phase
+  - id: 7
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 20
+      unit: "h"
+    comment: "Rest phase (step 26)"
+
+  # Step 27 – DCApp procedure acc. to 8.3.2.4
+  - id: 8
+    type: sub
+    name: "DCApp"
+    comment: "DCApp procedure acc. to 8.3.2.4 – result: Id = integrated charge / 200 s (step 27)"
+
+  # Step 28 – DCH 2 h at In
+  - id: 9
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    duration:
+      value: 2
+      unit: "h"
+    comment: "Discharge 2 h at In (step 28)"
+
+  # Step 29 – PAU min 12 h / max 72 h – Rest phase
+  - id: 10
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 12
+      unit: "h"
+    comment: "Rest phase min 12 h / max 72 h (step 29)"
+

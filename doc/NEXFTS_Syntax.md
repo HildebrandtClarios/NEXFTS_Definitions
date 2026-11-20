@@ -1,7 +1,7 @@
 # NEXFTS Test Definition — Syntax Reference
 
-> **NEXFTS** – Neutral Exchange Format for Battery Test Sequences  
-> Schema version: **0.1.1**  
+> **NEXFTS** – Neutral Exchange Format for Battery Test Sequences
+> Schema version: **0.3.0**
 > Validation: `schema/nexfts.schema.json`
 
 ---
@@ -24,6 +24,7 @@
   - [5.6 `sub` – Subroutine call](#56-sub--subroutine-call)
   - [5.7 `goto` – Unconditional jump](#57-goto--unconditional-jump)
   - [5.8 `set` – Set temperature](#58-set--set-temperature)
+  - [5.9 `pause` – Planned test interruption](#59-pause--planned-test-interruption-since-030)
 - [6. Step Attributes](#6-step-attributes)
   - [6.1 `temperature`](#61-temperature)
   - [6.2 `duration`](#62-duration)
@@ -32,6 +33,11 @@
     - [6.4.1 Simple conditions: `voltage` / `current` / `time` / `charge`](#641-simple-conditions-voltage--current--time--charge)
     - [6.4.2 `cumulative_charge` — Charge sum across explicit steps](#642-cumulative_charge--charge-sum-across-explicit-steps)
   - [6.5 `result`](#65-result)
+- [7. Variable Resolution (since 0.2.0)](#7-variable-resolution-since-020)
+  - [7.1 Where resolution happens](#71-where-resolution-happens)
+  - [7.2 Two-stage resolution](#72-two-stage-resolution)
+  - [7.3 Supported expression syntax](#73-supported-expression-syntax)
+  - [7.4 Example: complete resolution chain](#74-example-complete-resolution-chain)
 - [Example files](#example-files)
 - [Development setup](#development-setup)
   - [Schema validation](#schema-validation)
@@ -60,12 +66,42 @@ It consists of five mandatory sections:
 Specifies which schema version the file was written against.
 
 ```yaml
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 ```
 
 | Field | Type | Required | Format |
 |---|---|---|---|
 | `nexfts_schema_version` | `string` | ✅ | `"X.Y"` or `"X.Y.Z"` |
+
+### Versioning scheme
+
+The NEXFTS schema follows **Semantic Versioning** (SemVer) with three numeric components:
+
+```
+MAJOR.MINOR.PATCH
+  │     │     └── Bug fixes / documentation corrections (no schema changes)
+  │     └──────── New features, backward-compatible extensions
+  └────────────── Breaking changes (existing files may become invalid)
+```
+
+| Increment | When | Backward-compatible? | Example |
+|---|---|---|---|
+| **PATCH** (0.1.0 → 0.1.1) | Typo fixes in descriptions, clarified documentation, no structural change | ✅ Yes | Corrected `description` text in schema |
+| **MINOR** (0.1.1 → 0.2.0) | New optional fields, extended `enum` lists, relaxed type constraints | ✅ Yes | `duration.value` accepts expressions; `global_values.unit` gains time units |
+| **MAJOR** (0.x → 1.0.0) | Removed fields, renamed keys, tightened constraints that invalidate existing files | ❌ No | Hypothetical: renaming `global_values` to `variables` |
+
+> **Rule:** Every NEXFTS YAML file declares the schema version it was written against. The validator checks this field against the loaded schema. Files with a **higher** minor/patch version than the schema are accepted (forward-compatible); files with a **lower** major version than the schema may be rejected.
+
+> **Current version:** `0.3.0` — The leading `0` indicates that the schema is still in its initial development phase. Breaking changes may occur before `1.0.0` without a major version bump, but will be documented in the [CHANGELOG](CHANGELOG.md).
+
+### Version history
+
+| Version | Date | Key changes |
+|---|---|---|
+| `0.1.0` | 2025 | Initial schema: `rest`, `discharge`, `charge`, `begin`, `cycle`, `sub`, `goto`, `set` step types |
+| `0.1.1` | 2025 | Added `cumulative_charge` limit; `medium` field in `temperature`; semantic validator checks |
+| `0.2.0` | 2026-06-22 | `global_values.value` and `duration.value` accept expressions; `global_values.unit` extended with time units |
+| `0.3.0` | 2026-06-22 | New step type `pause` (planned test interruption); `rest` supports optional `limit` with voltage monitoring and `goto` |
 
 ---
 
@@ -112,13 +148,21 @@ global_values:
     value: 14.4
     unit: "V"
     description: "Charge voltage"
+  tDCH:
+    value: "(0.02 * Cn - 0.083) / 48 * 3600"
+    unit: "s"
+    description: "Computed discharge duration referencing other global_values"
 ```
 
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
-| `value` | `number` | ✅ | Any number |
-| `unit` | `string` | ✅ | `"A"`, `"V"`, `"Ah"` |
+| `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing other `global_values` keys, e.g. `"(0.02 * Cn - 0.083) / 48 * 3600"` |
+| `unit` | `string` | ✅ | `"A"`, `"V"`, `"Ah"`, `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
 | `description` | `string` | ⬜ | Free text |
+
+> **Expression support (since 0.2.0):** The `value` field accepts arithmetic expressions as strings. These expressions may reference other `global_values` keys (e.g. `Cn`). The tooling resolves them iteratively – a key used in an expression must be defined **before** it is referenced (i.e. it must not create a circular dependency).
+>
+> **Time units (since 0.2.0):** The `unit` field now also accepts time units (`"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"`), enabling duration-type global values such as computed discharge times.
 
 > **Unit consistency rule:** When a `global_values` key is referenced in a step field's `value` expression (e.g. `value: "Icc"`), the `unit` declared in that step field **must exactly match** the `unit` defined for the key in `global_values`. A mismatch is flagged by the validator as a semantic error — see [Understanding error output](#understanding-error-output).
 
@@ -153,8 +197,8 @@ Each object has the required fields `value` (`number`) and `unit` (`string`).
 
 ## 5. `steps`
 
-Sequence of test steps. At least one step is required.  
-Every step has at minimum the required fields `id` and `type`.  
+Sequence of test steps. At least one step is required.
+Every step has at minimum the required fields `id` and `type`.
 Further required fields depend on the step type (see table below).
 
 ### Required fields per step
@@ -176,6 +220,7 @@ Further required fields depend on the step type (see table below).
 | `sub` | Subroutine call | `id`, `type`, `name` |
 | `goto` | Unconditional jump to a step | `id`, `type`, `target_id` |
 | `set` | Set temperature | `id`, `type`, `temperature` (optional: `wait`) |
+| `pause` | Planned test interruption for manual operations | `id`, `type`, `comment` |
 
 ---
 
@@ -184,6 +229,7 @@ Further required fields depend on the step type (see table below).
 Pauses the test for a defined duration. No current flows; the temperature is maintained.
 
 ```yaml
+# Basic rest – fixed duration only
 - id: 1
   type: rest
   temperature:
@@ -199,14 +245,47 @@ Pauses the test for a defined duration. No current flows; the temperature is mai
   comment: "Initial rest at 25°C"
 ```
 
+```yaml
+# Rest with voltage monitoring and conditional goto
+- id: 10
+  type: rest
+  temperature:
+    value: 40
+    unit: "degC"
+    medium: "water"
+  duration:
+    value: 3
+    unit: "h"
+  limit:
+    voltage:
+      operator: less_than
+      value: 11.0
+      unit: "V"
+    goto:
+      target_id: 20
+      comment: "Jump to check-up if voltage drops below 11.0 V during rest"
+  result:
+    - name: "U(3h)"
+      description: "Voltage after 3 h rest"
+  comment: "Relaxation 3 h; abort and jump to step 20 if U < 11.0 V"
+```
+
 | Field | Required | Description |
 |---|---|---|
 | `id` | ✅ | Unique step ID (`integer` ≥ 1) |
 | `type` | ✅ | `"rest"` |
 | `temperature` | ✅ | Test temperature (see [6.1 `temperature`](#61-temperature)) |
 | `duration` | ✅ | Rest duration (see [6.2 `duration`](#62-duration)) |
+| `limit` | ⬜ | Optional abort criterion during rest (see [6.4 `limit`](#64-limit)) |
 | `result` | ⬜ | Measurement results to be recorded (see [6.5 `result`](#65-result)) |
 | `comment` | ⬜ | Free-text description |
+
+> **`limit` on rest steps (since 0.3.0):** While `duration` defines the planned rest time, an optional `limit` can trigger an early abort — typically a voltage threshold to detect cell failure during long rest phases. Combined with `limit.goto`, this enables conditional branching (e.g. jump to a check-up sequence if the battery self-discharges abnormally).
+>
+> | Variant | `duration` | `limit` | Behaviour |
+> |---|---|---|---|
+> | Fixed duration only | ✅ | — | Rest ends after timer expires |
+> | Duration + voltage monitoring | ✅ | ✅ | Rest ends after timer **or** early if voltage condition is met |
 
 ---
 
@@ -417,7 +496,7 @@ Marks the start of a loop block. The associated `cycle` element must carry the s
 | `level` | ✅ | Nesting depth (`integer` ≥ 1); `1` = outermost loop |
 | `comment` | ✅ | Description of the loop |
 
-> `begin` must **not** contain a `temperature` field.  
+> `begin` must **not** contain a `temperature` field.
 > The number of iterations is specified in the associated [`cycle` step](#55-cycle--loop-end) via `count`.
 
 ---
@@ -536,6 +615,40 @@ The `wait` attribute controls whether the sequence is held at this step until th
 
 ---
 
+### 5.9 `pause` – Planned test interruption (since 0.3.0)
+
+Interrupts the test program and waits for operator confirmation before continuing. Unlike `rest`, the duration is **unknown** — the test system holds until the operator confirms continuation.
+
+Typical use cases: manual measurements, visual inspection, electrolyte level adjustment, sensor recalibration, or any manual intervention that must be completed before the test continues.
+
+```yaml
+- id: 5
+  type: pause
+  comment: "Weigh battery and record electrolyte level before continuing"
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | ✅ | Unique step ID (`integer` ≥ 1) |
+| `type` | ✅ | `"pause"` |
+| `comment` | ✅ | Description of the manual operation to be performed |
+
+> `pause` does **not** carry `temperature`, `duration`, `current`, `voltage`, or `limit`.
+>
+> **Difference from `rest`:**
+>
+> | | `rest` | `pause` |
+> |---|---|---|
+> | Duration | Defined (e.g. 3 h) | Unknown — operator-controlled |
+> | Continuation | Automatic after timer expires | Manual (operator presses start) |
+> | Temperature | Maintained at setpoint | Not controlled (no `temperature` field) |
+> | Electrical | No current, OCV monitored | No current, no monitoring |
+> | Use case | Relaxation, thermal soak | Manual inspection, measurements, adjustments |
+>
+> **Digatron mapping:** `pause` → `INT` (Interrupt Operator). The `comment` text is placed in the Sollwert column.
+
+---
+
 ## 6. Step Attributes
 
 This section describes all attributes that can be used within step definitions.
@@ -570,10 +683,19 @@ duration:
   unit: "hours"
 ```
 
+```yaml
+# Expression referencing a global_values key (since 0.2.0)
+duration:
+  value: "1 + tDCH"
+  unit: "s"
+```
+
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
-| `value` | `number` | ✅ | Any number |
+| `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing `global_values` keys, e.g. `"tDCH"`, `"1 + tDCH"` |
 | `unit` | `string` | ✅ | `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
+
+> **Expression support (since 0.2.0):** Like `current.value` and `voltage.value`, `duration.value` now also accepts string expressions that reference `global_values` keys. This allows computed durations that automatically adapt when a referenced global value changes.
 
 ---
 
@@ -600,11 +722,11 @@ voltage:
 
 ### 6.4 `limit`
 
-Defines abort conditions for a step. Multiple conditions are combined using `logic`.  
-If no condition is met, execution continues with the next step.  
+Defines abort conditions for a step. Multiple conditions are combined using `logic`.
+If no condition is met, execution continues with the next step.
 The optional `goto` attribute allows jumping to any step when the condition is satisfied.
 
-> **Note:** `limit` is used exclusively as a **cut-off criterion** (e.g. voltage drops below a threshold, current falls below the tail-current level).  
+> **Note:** `limit` is used exclusively as a **cut-off criterion** (e.g. voltage drops below a threshold, current falls below the tail-current level).
 > The **duration** of a step is specified via `duration`. For `discharge` and `charge` steps the same three variants apply:
 >
 > | Variant | `duration` | `limit` | Semantics |
@@ -677,7 +799,7 @@ limit:
 > **`charge`** tracks the charge accumulated **within the current step only**.
 > To aggregate charge across multiple steps use `cumulative_charge` (see [6.4.2](#642-cumulative_charge--charge-sum-across-explicit-steps)).
 
-> If `limit.goto` is **not** specified, execution continues with the next step after the condition is met.  
+> If `limit.goto` is **not** specified, execution continues with the next step after the condition is met.
 > If `limit.goto` is **specified**, execution jumps to `target_id` when the condition is met.
 
 ---
@@ -773,9 +895,124 @@ result:
 
 ---
 
+## 7. Variable Resolution (since 0.2.0)
+
+This section describes how symbolic expressions in `global_values` and step fields are resolved to numeric values at export time.
+
+### 7.1 Where resolution happens
+
+| Component | Resolves expressions? | Details |
+|---|---|---|
+| `nexfts_to_digatron.py` | ✅ | Full resolution via `build_globals()` + `eval_val()` |
+| `nexfts_to_markdown.py` | ✅ | Full resolution via `build_globals()` + `eval_val()` |
+| `validate_nextfts.py` | ❌ | Schema + semantic checks only; no numeric evaluation |
+| GUI (`nexfts_editor.py`) | ❌ | Displays raw values as-is |
+
+> **Design principle:** The YAML file stores the **symbolic** form. Numeric resolution is deferred to the export tools, keeping the source file readable, maintainable, and independent of specific battery parameters.
+
+### 7.2 Two-stage resolution
+
+#### Stage 1 — `build_globals()`: Resolve `global_values` among themselves
+
+All entries in `global_values` whose `value` is a string expression are evaluated iteratively. A key may reference any **previously resolved** key.
+
+```
+Input (YAML):
+  Cn:   { value: 60,                              unit: "Ah" }
+  tDCH: { value: "(0.02 * Cn - 0.083) / 48 * 3600", unit: "s"  }
+
+After build_globals():
+  Cn   → 60
+  tDCH → (0.02 * 60 - 0.083) / 48 * 3600 = 83.775
+```
+
+**Rules:**
+- Resolution order follows the definition order in the YAML file.
+- A key used in an expression must appear **earlier** in `global_values` (no forward references).
+- Circular dependencies are not allowed and will raise an error.
+- Allowed operators: `+`, `-`, `*`, `/`, `(`, `)`.
+
+#### Stage 2 — `eval_val()`: Resolve step field expressions
+
+After `build_globals()` has produced a dict of `{name: numeric_value}`, each step's `current.value`, `voltage.value`, and `duration.value` is evaluated if it is a string expression.
+
+```
+global_values (resolved):
+  In   = 3.0
+  tDCH = 83.775
+
+Step expression:          Resolved value:
+  "5 * In"            →   15.0
+  "1 + tDCH"          →   84.775
+  "tDCH"              →   83.775
+  "Uc"                →   14.4   (simple variable reference)
+```
+
+### 7.3 Supported expression syntax
+
+| Element | Example | Description |
+|---|---|---|
+| Numeric literal | `42`, `3.14` | Integer or float |
+| Variable reference | `Cn`, `tDCH` | Must match a `global_values` key exactly (case-sensitive) |
+| Arithmetic operators | `+`, `-`, `*`, `/` | Standard precedence; `/` is float division |
+| Parentheses | `(0.02 * Cn - 0.083)` | Override precedence |
+
+> **Not supported:** Functions (e.g. `sqrt()`), exponentiation (`**`), comparison operators, or conditional logic. Keep expressions simple — complex calculations should be documented in `description` and pre-computed where possible.
+
+### 7.4 Example: complete resolution chain
+
+```yaml
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity C20"
+  In:
+    value: 3.0
+    unit: "A"
+    description: "Nominal current In = Cn / 20 h"
+  tDCH:
+    value: "(0.02 * Cn - 0.083) / 48 * 3600"
+    unit: "s"
+    description: "Low rate discharge duration per micro-cycle"
+
+steps:
+  - id: 10
+    type: charge
+    duration:
+      value: "1 + tDCH"    # → 1 + 83.775 = 84.775 s
+      unit: "s"
+    voltage:
+      value: 14.0
+      unit: "V"
+    current:
+      value: 100
+      unit: "A"
+    ...
+
+  - id: 11
+    type: discharge
+    duration:
+      value: "tDCH"        # → 83.775 s
+      unit: "s"
+    current:
+      value: 48
+      unit: "A"
+    ...
+```
+
+Resolution chain:
+1. `Cn = 60` (numeric, no resolution needed)
+2. `In = 3.0` (numeric, no resolution needed)
+3. `tDCH = (0.02 * 60 - 0.083) / 48 * 3600 = 83.775`
+4. Step 10 duration: `1 + 83.775 = 84.775 s`
+5. Step 11 duration: `83.775 s`
+
+---
+
 ## Example files
 
-Complete NEXFTS test definitions are available in `clarios_nexfts/`.  
+Complete NEXFTS test definitions are available in `clarios_nexfts/`.
 All files have been validated against `schema/nexfts.schema.json`.
 
 ### Cold-crank / EN standard
@@ -1050,10 +1287,9 @@ pre-commit install            # register the hook in the local repository
 pre-commit run --all-files
 ```
 
-**PyCharm integration:**  
+**PyCharm integration:**
 The hook is executed automatically by PyCharm when a commit is triggered via
 *Git → Commit* (`Ctrl+K`) – no separate configuration is required.
 
-The hook configuration is located in [`.pre-commit-config.yaml`](../.pre-commit-config.yaml).  
+The hook configuration is located in [`.pre-commit-config.yaml`](../.pre-commit-config.yaml).
 The wrapper script that calls `validate_nextfts.py` for each file individually is located in [`tools/nexfts_validate_hook.py`](../tools/nexfts_validate_hook.py).
-

@@ -1,4 +1,4 @@
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 
 metadata:
   name: "Endurance_50pct_DoD"
@@ -137,4 +137,3 @@ steps:
     level: 1
     count: 360
     comment: "End loop – return to begin (step 01); up to 360 repetitions (test may end earlier on battery failure)"
-

@@ -1,0 +1,125 @@
+nexfts_schema_version: "0.3.0"
+
+metadata:
+  name: "DCApp"
+  version: "1.0.0"
+  description: "DCA – The DCApp procedure according to Table 10. Sub-procedure called from Table 9 (steps 21 and 27). Battery in water bath at 25 ± 2 °C according to EN 50342-1:2015, 5.3.2."
+  standard:
+    name: "EN 50342-6:2025"
+    title: "Lead-acid starter batteries - Part 6: Batteries for micro-cycle applications"
+    clause: "Table 10"
+
+# NOTE 1: The average charge current Ic (after charge history, Table 9 step 21) is
+#   calculated from the integrated amount of charge over all 20 pulses, divided by
+#   the total charge time (200 s).
+#
+# NOTE 2: Ic = sum(Q_i) * 3600 s/h / 200 s.
+#
+# NOTE 3: The average charge current Id (after discharge history, Table 9 step 27) is
+#   calculated from the integrated amount of charge over all 20 pulses, divided by
+#   the total charge time (200 s).
+#
+# NOTE 4: Id = sum(Q_i) * 3600 s/h / 200 s.
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity C20 (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+
+global_limits:
+  max_voltage:
+    value: 18.0
+    unit: "V"
+  max_current:
+    value: 120
+    unit: "A"
+  max_temperature:
+    value: 40
+    unit: "degC"
+
+
+steps:
+  # ──────────────────────────────────────────────────────────────────────
+  # DCApp procedure – 20 × (charge pulse + rest + discharge + rest)
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Loop: repeat steps 30–33 twenty times
+  - id: 1
+    type: begin
+    level: 1
+    comment: "DCApp loop – run steps 30 to 33 twenty times (x = 1..20)"
+
+  # Step 30 – CHA 10 s at 14.8 V / 33.3·In – Charge pulse
+  - id: 2
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: 14.8
+      unit: "V"
+    current:
+      value: "33.3 * In"
+      unit: "A"
+    duration:
+      value: 10
+      unit: "s"
+    result:
+      - name: "dQ_i"
+        description: "Charge increment delta_Qi for this pulse; sum over 20 pulses gives Ic or Id"
+    comment: "Charge pulse 10 s at 14.8 V / 33.3·In (step 30)"
+
+  # Step 31 – PAU 30 s – Rest phase
+  - id: 3
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 30
+      unit: "s"
+    comment: "Rest phase (step 31)"
+
+  # Step 32 – DCH at 20·In until delta_Qi discharged
+  - id: 4
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "20 * In"
+      unit: "A"
+    limit:
+      charge:
+        operator: greater_than_or_equal
+        value: "dQ_i"
+        unit: "Ah"
+    comment: "Discharge at 20·In until delta_Qi [Ah] is reached – restores SoC to pre-pulse level (step 32)"
+
+  # Step 33 – PAU 30 s – Rest phase
+  - id: 5
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 30
+      unit: "s"
+    comment: "Rest phase (step 33)"
+
+  # Step 34 – End of loop (20 repetitions)
+  - id: 6
+    type: cycle
+    level: 1
+    count: 20
+    comment: "End DCApp loop – 20 repetitions completed"
+
