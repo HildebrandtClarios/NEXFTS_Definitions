@@ -1,4 +1,4 @@
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 
 metadata:
   name: "PPC_EOL_category_1"
@@ -91,4 +91,3 @@ steps:
     type: sub
     name: "PP1"
     comment: "PPC Procedure at -18°C, partial SOC – PP1 (Table 9) is used; PP2 (Table 10) may be used alternatively"
-

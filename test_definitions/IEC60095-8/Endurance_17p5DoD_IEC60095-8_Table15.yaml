@@ -1,4 +1,4 @@
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 
 metadata:
   name: "Endurance_17p5pct_DoD"
@@ -176,4 +176,3 @@ steps:
     result:
       - name: "Q_CHA_recharge"
         description: "Recharged electrical charge during recharge (QCHA)"
-

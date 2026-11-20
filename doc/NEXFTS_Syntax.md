@@ -1,8 +1,8 @@
 # NEXFTS Test Definition — Syntax Reference
 
-> **NEXFTS** – Neutral Exchange Format for Battery Test Sequences  
-> Schema version: **0.1.1**  
-> Validation: `schema/nexfts.schema.json`
+> **NEXFTS** – Neutral Exchange Format for Battery Test Sequences
+> Schema version: **0.3.0**
+> Schema: [`nexfts.schema.json`](../nexfts_schema/nexfts.schema.json)
 
 ---
 
@@ -24,6 +24,7 @@
   - [5.6 `sub` – Subroutine call](#56-sub--subroutine-call)
   - [5.7 `goto` – Unconditional jump](#57-goto--unconditional-jump)
   - [5.8 `set` – Set temperature](#58-set--set-temperature)
+  - [5.9 `pause` – Planned test interruption](#59-pause--planned-test-interruption-since-030)
 - [6. Step Attributes](#6-step-attributes)
   - [6.1 `temperature`](#61-temperature)
   - [6.2 `duration`](#62-duration)
@@ -32,11 +33,11 @@
     - [6.4.1 Simple conditions: `voltage` / `current` / `time` / `charge`](#641-simple-conditions-voltage--current--time--charge)
     - [6.4.2 `cumulative_charge` — Charge sum across explicit steps](#642-cumulative_charge--charge-sum-across-explicit-steps)
   - [6.5 `result`](#65-result)
+- [7. Expressions and Global Value References (since 0.2.0)](#7-expressions-and-global-value-references-since-020)
+  - [7.1 Where expressions are used](#71-where-expressions-are-used)
+  - [7.2 Supported expression syntax](#72-supported-expression-syntax)
+  - [7.3 Example](#73-example)
 - [Example files](#example-files)
-- [Development setup](#development-setup)
-  - [Schema validation](#schema-validation)
-  - [Understanding error output](#understanding-error-output)
-  - [Pre-commit hook (PyCharm / Git)](#pre-commit-hook-pycharm--git)
 
 ---
 
@@ -60,12 +61,42 @@ It consists of five mandatory sections:
 Specifies which schema version the file was written against.
 
 ```yaml
-nexfts_schema_version: "0.1.1"
+nexfts_schema_version: "0.3.0"
 ```
 
 | Field | Type | Required | Format |
 |---|---|---|---|
 | `nexfts_schema_version` | `string` | ✅ | `"X.Y"` or `"X.Y.Z"` |
+
+### Versioning scheme
+
+The NEXFTS schema follows **Semantic Versioning** (SemVer) with three numeric components:
+
+```
+MAJOR.MINOR.PATCH
+  │     │     └── Bug fixes / documentation corrections (no schema changes)
+  │     └──────── New features, backward-compatible extensions
+  └────────────── Breaking changes (existing files may become invalid)
+```
+
+| Increment | When | Backward-compatible? | Example |
+|---|---|---|---|
+| **PATCH** (0.1.0 → 0.1.1) | Typo fixes in descriptions, clarified documentation, no structural change | ✅ Yes | Corrected `description` text in schema |
+| **MINOR** (0.1.1 → 0.2.0) | New optional fields, extended `enum` lists, relaxed type constraints | ✅ Yes | `duration.value` accepts expressions; `global_values.unit` gains time units |
+| **MAJOR** (0.x → 1.0.0) | Removed fields, renamed keys, tightened constraints that invalidate existing files | ❌ No | Hypothetical: renaming `global_values` to `variables` |
+
+> Every NEXFTS YAML file declares the schema version it was written against. The declaration identifies the intended schema version; it does not by itself guarantee compatibility with a different schema version.
+
+> **Current version:** `0.3.0` — The leading `0` indicates that the schema is still in its initial development phase. Breaking changes may occur before `1.0.0` without a major version bump.
+
+### Version history
+
+| Version | Date | Key changes |
+|---|---|---|
+| `0.1.0` | 2025 | Initial schema: `rest`, `discharge`, `charge`, `begin`, `cycle`, `sub`, `goto`, `set` step types |
+| `0.1.1` | 2025 | Added `cumulative_charge` limit; `medium` field in `temperature` |
+| `0.2.0` | 2026-06-22 | `global_values.value` and `duration.value` accept expressions; `global_values.unit` extended with time units |
+| `0.3.0` | 2026-06-22 | New step type `pause` (planned test interruption); `rest` supports optional `limit` with voltage monitoring and `goto` |
 
 ---
 
@@ -112,15 +143,23 @@ global_values:
     value: 14.4
     unit: "V"
     description: "Charge voltage"
+  tDCH:
+    value: "(0.02 * Cn - 0.083) / 48 * 3600"
+    unit: "s"
+    description: "Computed discharge duration referencing other global_values"
 ```
 
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
-| `value` | `number` | ✅ | Any number |
-| `unit` | `string` | ✅ | `"A"`, `"V"`, `"Ah"` |
+| `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing other `global_values` keys, e.g. `"(0.02 * Cn - 0.083) / 48 * 3600"` |
+| `unit` | `string` | ✅ | `"A"`, `"V"`, `"Ah"`, `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
 | `description` | `string` | ⬜ | Free text |
 
-> **Unit consistency rule:** When a `global_values` key is referenced in a step field's `value` expression (e.g. `value: "Icc"`), the `unit` declared in that step field **must exactly match** the `unit` defined for the key in `global_values`. A mismatch is flagged by the validator as a semantic error — see [Understanding error output](#understanding-error-output).
+> **Expression support (since 0.2.0):** The `value` field accepts arithmetic expressions as strings. These expressions may reference other `global_values` keys (e.g. `Cn`); see [Expressions and Global Value References](#7-expressions-and-global-value-references-since-020).
+>
+> **Time units (since 0.2.0):** The `unit` field now also accepts time units (`"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"`), enabling duration-type global values such as computed discharge times.
+
+> **Unit consistency:** When a `global_values` key is referenced in a step field's `value` expression (e.g. `value: "Icc"`), use the same unit for the step field as for the referenced key. NEXFTS expressions do not perform unit conversion.
 
 ---
 
@@ -153,8 +192,8 @@ Each object has the required fields `value` (`number`) and `unit` (`string`).
 
 ## 5. `steps`
 
-Sequence of test steps. At least one step is required.  
-Every step has at minimum the required fields `id` and `type`.  
+Sequence of test steps. At least one step is required.
+Every step has at minimum the required fields `id` and `type`.
 Further required fields depend on the step type (see table below).
 
 ### Required fields per step
@@ -176,6 +215,7 @@ Further required fields depend on the step type (see table below).
 | `sub` | Subroutine call | `id`, `type`, `name` |
 | `goto` | Unconditional jump to a step | `id`, `type`, `target_id` |
 | `set` | Set temperature | `id`, `type`, `temperature` (optional: `wait`) |
+| `pause` | Planned test interruption for manual operations | `id`, `type`, `comment` |
 
 ---
 
@@ -184,6 +224,7 @@ Further required fields depend on the step type (see table below).
 Pauses the test for a defined duration. No current flows; the temperature is maintained.
 
 ```yaml
+# Basic rest – fixed duration only
 - id: 1
   type: rest
   temperature:
@@ -199,14 +240,47 @@ Pauses the test for a defined duration. No current flows; the temperature is mai
   comment: "Initial rest at 25°C"
 ```
 
+```yaml
+# Rest with voltage monitoring and conditional goto
+- id: 10
+  type: rest
+  temperature:
+    value: 40
+    unit: "degC"
+    medium: "water"
+  duration:
+    value: 3
+    unit: "h"
+  limit:
+    voltage:
+      operator: less_than
+      value: 11.0
+      unit: "V"
+    goto:
+      target_id: 20
+      comment: "Jump to check-up if voltage drops below 11.0 V during rest"
+  result:
+    - name: "U(3h)"
+      description: "Voltage after 3 h rest"
+  comment: "Relaxation 3 h; abort and jump to step 20 if U < 11.0 V"
+```
+
 | Field | Required | Description |
 |---|---|---|
 | `id` | ✅ | Unique step ID (`integer` ≥ 1) |
 | `type` | ✅ | `"rest"` |
 | `temperature` | ✅ | Test temperature (see [6.1 `temperature`](#61-temperature)) |
 | `duration` | ✅ | Rest duration (see [6.2 `duration`](#62-duration)) |
+| `limit` | ⬜ | Optional abort criterion during rest (see [6.4 `limit`](#64-limit)) |
 | `result` | ⬜ | Measurement results to be recorded (see [6.5 `result`](#65-result)) |
 | `comment` | ⬜ | Free-text description |
+
+> **`limit` on rest steps (since 0.3.0):** While `duration` defines the planned rest time, an optional `limit` can trigger an early abort — typically a voltage threshold to detect cell failure during long rest phases. Combined with `limit.goto`, this enables conditional branching (e.g. jump to a check-up sequence if the battery self-discharges abnormally).
+>
+> | Variant | `duration` | `limit` | Behaviour |
+> |---|---|---|---|
+> | Fixed duration only | ✅ | — | Rest ends after timer expires |
+> | Duration + voltage monitoring | ✅ | ✅ | Rest ends after timer **or** early if voltage condition is met |
 
 ---
 
@@ -417,7 +491,7 @@ Marks the start of a loop block. The associated `cycle` element must carry the s
 | `level` | ✅ | Nesting depth (`integer` ≥ 1); `1` = outermost loop |
 | `comment` | ✅ | Description of the loop |
 
-> `begin` must **not** contain a `temperature` field.  
+> `begin` must **not** contain a `temperature` field.
 > The number of iterations is specified in the associated [`cycle` step](#55-cycle--loop-end) via `count`.
 
 ---
@@ -461,7 +535,7 @@ Calls a named sub-sequence. The subroutine is defined as a standalone YAML file 
 |---|---|---|
 | `id` | ✅ | Unique step ID (`integer` ≥ 1) |
 | `type` | ✅ | `"sub"` |
-| `name` | ✅ | Name of the subroutine to call, e.g. `"PP1"`, `"TLOOP"` |
+| `name` | ✅ | Name of the subroutine to call, e.g. `"PP1"` |
 | `comment` | ⬜ | Free-text description |
 
 > `sub` must **not** contain a `temperature` field.
@@ -536,6 +610,38 @@ The `wait` attribute controls whether the sequence is held at this step until th
 
 ---
 
+### 5.9 `pause` – Planned test interruption (since 0.3.0)
+
+Interrupts the test program and waits for operator confirmation before continuing. Unlike `rest`, the duration is **unknown** — the test system holds until the operator confirms continuation.
+
+Typical use cases: manual measurements, visual inspection, electrolyte level adjustment, sensor recalibration, or any manual intervention that must be completed before the test continues.
+
+```yaml
+- id: 5
+  type: pause
+  comment: "Weigh battery and record electrolyte level before continuing"
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | ✅ | Unique step ID (`integer` ≥ 1) |
+| `type` | ✅ | `"pause"` |
+| `comment` | ✅ | Description of the manual operation to be performed |
+
+> `pause` does **not** carry `temperature`, `duration`, `current`, `voltage`, or `limit`.
+>
+> **Difference from `rest`:**
+>
+> | | `rest` | `pause` |
+> |---|---|---|
+> | Duration | Defined (e.g. 3 h) | Unknown — operator-controlled |
+> | Continuation | Automatic after timer expires | Manual (operator presses start) |
+> | Temperature | Maintained at setpoint | Not controlled (no `temperature` field) |
+> | Electrical | No current, OCV monitored | No current, no monitoring |
+> | Use case | Relaxation, thermal soak | Manual inspection, measurements, adjustments |
+>
+---
+
 ## 6. Step Attributes
 
 This section describes all attributes that can be used within step definitions.
@@ -547,18 +653,16 @@ Each attribute is shared across multiple step types; refer to the per-step table
 
 ```yaml
 temperature:
-  value: -18        # number or variable reference, e.g. "TLOOP"
+  value: -18
   unit: "degC"
   medium: "air"     # optional
 ```
 
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
-| `value` | `number` or `string` | ✅ | Number or variable reference, e.g. `"TLOOP"` |
+| `value` | `number` | ✅ | Temperature in degrees Celsius |
 | `unit` | `string` | ✅ | `"degC"` |
 | `medium` | `string` | ⬜ | `"air"`, `"water"` |
-
-> **`TLOOP`** is a special variable reference that inherits the temperature from the surrounding loop context (`begin`/`cycle`).
 
 ---
 
@@ -570,10 +674,19 @@ duration:
   unit: "hours"
 ```
 
+```yaml
+# Expression referencing a global_values key (since 0.2.0)
+duration:
+  value: "1 + tDCH"
+  unit: "s"
+```
+
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
-| `value` | `number` | ✅ | Any number |
+| `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing `global_values` keys, e.g. `"tDCH"`, `"1 + tDCH"` |
 | `unit` | `string` | ✅ | `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
+
+> **Expression support (since 0.2.0):** Like `current.value` and `voltage.value`, `duration.value` now also accepts string expressions that reference `global_values` keys. This allows computed durations that automatically adapt when a referenced global value changes.
 
 ---
 
@@ -600,11 +713,11 @@ voltage:
 
 ### 6.4 `limit`
 
-Defines abort conditions for a step. Multiple conditions are combined using `logic`.  
-If no condition is met, execution continues with the next step.  
+Defines abort conditions for a step. Multiple conditions are combined using `logic`.
+If no condition is met, execution continues with the next step.
 The optional `goto` attribute allows jumping to any step when the condition is satisfied.
 
-> **Note:** `limit` is used exclusively as a **cut-off criterion** (e.g. voltage drops below a threshold, current falls below the tail-current level).  
+> **Note:** `limit` is used exclusively as a **cut-off criterion** (e.g. voltage drops below a threshold, current falls below the tail-current level).
 > The **duration** of a step is specified via `duration`. For `discharge` and `charge` steps the same three variants apply:
 >
 > | Variant | `duration` | `limit` | Semantics |
@@ -677,7 +790,7 @@ limit:
 > **`charge`** tracks the charge accumulated **within the current step only**.
 > To aggregate charge across multiple steps use `cumulative_charge` (see [6.4.2](#642-cumulative_charge--charge-sum-across-explicit-steps)).
 
-> If `limit.goto` is **not** specified, execution continues with the next step after the condition is met.  
+> If `limit.goto` is **not** specified, execution continues with the next step after the condition is met.
 > If `limit.goto` is **specified**, execution jumps to `target_id` when the condition is met.
 
 ---
@@ -726,7 +839,7 @@ steps:
 | `cumulative_charge.value` | `number` or `string` | ✅ | Number or `global_values` key expression |
 | `cumulative_charge.unit` | `string` | ✅ | `"Ah"`, `"mAh"` |
 
-> **Rules validated by the validator:**
+> **Usage constraints:**
 > - The `steps` list must contain the ID of the **current step** (otherwise the step would not contribute to its own limit).
 > - All step IDs in `steps` must **exist** in the sequence.
 > - Non-current steps must appear **earlier** in the sequence (future steps cannot be referenced).
@@ -773,16 +886,88 @@ result:
 
 ---
 
+## 7. Expressions and Global Value References (since 0.2.0)
+
+String values in selected fields can contain arithmetic expressions that refer to names defined in `global_values`.
+
+### 7.1 Where expressions are used
+
+| Field | Accepted value |
+|---|---|---|
+| `global_values.<name>.value` | Number or expression string |
+| `duration.value` | Number or expression string |
+| `current.value` / `voltage.value` | Number or expression string |
+| `limit.charge.value` / `limit.cumulative_charge.value` | Number or expression string |
+
+Other numeric fields, including `temperature.value` and the simple voltage, current, and time limit values, use numbers.
+
+### 7.2 Supported expression syntax
+
+| Element | Example | Description |
+|---|---|---|
+| Numeric literal | `42`, `3.14` | Integer or float |
+| Variable reference | `Cn`, `tDCH` | Must match a `global_values` key exactly (case-sensitive) |
+| Arithmetic operators | `+`, `-`, `*`, `/` | Standard precedence; `/` is float division |
+| Parentheses | `(0.02 * Cn - 0.083)` | Override precedence |
+
+> **Not supported:** Functions (e.g. `sqrt()`), exponentiation (`**`), comparison operators, or conditional logic. Keep expressions simple — complex calculations should be documented in `description` and pre-computed where possible.
+
+The schema allows these values to be numbers or strings; interpreting an expression and resolving its references is the responsibility of the NEXFTS-consuming application.
+
+### 7.3 Example
+
+```yaml
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity C20"
+  In:
+    value: 3.0
+    unit: "A"
+    description: "Nominal current In = Cn / 20 h"
+  tDCH:
+    value: "(0.02 * Cn - 0.083) / 48 * 3600"
+    unit: "s"
+    description: "Low rate discharge duration per micro-cycle"
+
+steps:
+  - id: 1
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+    duration:
+      value: "1 + tDCH"    # → 1 + 83.775 = 84.775 s
+      unit: "s"
+    voltage:
+      value: 14.0
+      unit: "V"
+    current:
+      value: 100
+      unit: "A"
+```
+
+---
+
 ## Example files
 
-Complete NEXFTS test definitions are available in `clarios_nexfts/`.  
-All files have been validated against `schema/nexfts.schema.json`.
+The following complete NEXFTS test definitions are available under [`test_definitions`](../test_definitions/).
 
 ### Cold-crank / EN standard
 
 | File | Description |
 |---|---|
-| [`coldcrank_EN.yaml`](../clarios_nexfts/coldcrank_EN.yaml) | Cold-crank performance test according to EN 50342-1 |
+| [`coldcrank_EN.yaml`](../test_definitions/coldcrank_EN.yaml) | Cold-crank performance test according to EN 50342-1 |
+
+### EN 50342-6
+
+| File | Description |
+|---|---|
+| [`DCA_PreCycling_Table8.yaml`](../test_definitions/EN50342-6/DCA_PreCycling_Table8.yaml) | DCA pre-cycling procedure |
+| [`DCA_qDCA_Table9.yaml`](../test_definitions/EN50342-6/DCA_qDCA_Table9.yaml) | DCA charge-acceptance procedure |
+| [`DCApp_Table10.yaml`](../test_definitions/EN50342-6/DCApp_Table10.yaml) | DCApp procedure |
+| [`MHT_V2_Table7.yaml`](../test_definitions/EN50342-6/MHT_V2_Table7.yaml) | Micro-hybrid test procedure |
 
 ### IEC 60095-8 – Power Performance Characteristics (PPC)
 
@@ -790,270 +975,36 @@ Sub-procedures (called via `sub` step from the sequences below):
 
 | File | Norm | Description |
 |---|---|---|
-| [`PP1_procedure_IEC60095-8_Table9.yaml`](../clarios_nexfts/PP1_procedure_IEC60095-8_Table9.yaml) | Table 9 | Pulse Profile PP1 – currents relative to Icc (0.2·Icc, 0.4·Icc) |
-| [`PP2_procedure_IEC60095-8_Table10.yaml`](../clarios_nexfts/PP2_procedure_IEC60095-8_Table10.yaml) | Table 10 | Pulse Profile PP2 – agreed fixed amplitudes I1, I2 |
+| [`PP1_procedure_IEC60095-8_Table9.yaml`](../test_definitions/IEC60095-8/PP1_procedure_IEC60095-8_Table9.yaml) | Table 9 | Pulse Profile PP1 – currents relative to Icc (0.2·Icc, 0.4·Icc) |
+| [`PP2_procedure_IEC60095-8_Table10.yaml`](../test_definitions/IEC60095-8/PP2_procedure_IEC60095-8_Table10.yaml) | Table 10 | Pulse Profile PP2 – agreed fixed amplitudes I1, I2 |
 
 PPC test sequences at **Beginning of Life (BOL)**:
 
 | File | Norm | Categories | Discharge |
 |---|---|---|---|
-| [`PPC_BOL_cat1_IEC60095-8_Table4.yaml`](../clarios_nexfts/PPC_BOL_cat1_IEC60095-8_Table4.yaml) | Table 4 | Cat. 1 | 10 h / 50 % Cn |
-| [`PPC_BOL_cat23_IEC60095-8_Table5.yaml`](../clarios_nexfts/PPC_BOL_cat23_IEC60095-8_Table5.yaml) | Table 5 | Cat. 2+3 | 4 h / 20 % Cn |
-| [`PPC_BOL_cat123_IEC60095-8_Table3.yaml`](../clarios_nexfts/PPC_BOL_cat123_IEC60095-8_Table3.yaml) | Table 3 | Cat. 1+2+3 | 4 h + 6 h / 50 % Cn, 2 × PP1 |
+| [`PPC_BOL_cat1_IEC60095-8_Table4.yaml`](../test_definitions/IEC60095-8/PPC_BOL_cat1_IEC60095-8_Table4.yaml) | Table 4 | Cat. 1 | 10 h / 50 % Cn |
+| [`PPC_BOL_cat23_IEC60095-8_Table5.yaml`](../test_definitions/IEC60095-8/PPC_BOL_cat23_IEC60095-8_Table5.yaml) | Table 5 | Cat. 2+3 | 4 h / 20 % Cn |
+| [`PPC_BOL_cat123_IEC60095-8_Table3.yaml`](../test_definitions/IEC60095-8/PPC_BOL_cat123_IEC60095-8_Table3.yaml) | Table 3 | Cat. 1+2+3 | 4 h + 6 h / 50 % Cn, 2 × PP1 |
 
 PPC test sequences at **End of Life (EOL)**:
 
 | File | Norm | Categories | Discharge |
 |---|---|---|---|
-| [`PPC_EOL_cat1_IEC60095-8_Table7.yaml`](../clarios_nexfts/PPC_EOL_cat1_IEC60095-8_Table7.yaml) | Table 7 | Cat. 1 | 5 h / 25 % Cn |
-| [`PPC_EOL_cat23_IEC60095-8_Table8.yaml`](../clarios_nexfts/PPC_EOL_cat23_IEC60095-8_Table8.yaml) | Table 8 | Cat. 2+3 | 2 h / 10 % Cn |
-| [`PPC_EOL_cat123_IEC60095-8_Table6.yaml`](../clarios_nexfts/PPC_EOL_cat123_IEC60095-8_Table6.yaml) | Table 6 | Cat. 1+2+3 | 2 h + 3 h / 25 % Cn, 2 × PP1 |
+| [`PPC_EOL_cat1_IEC60095-8_Table7.yaml`](../test_definitions/IEC60095-8/PPC_EOL_cat1_IEC60095-8_Table7.yaml) | Table 7 | Cat. 1 | 5 h / 25 % Cn |
+| [`PPC_EOL_cat23_IEC60095-8_Table8.yaml`](../test_definitions/IEC60095-8/PPC_EOL_cat23_IEC60095-8_Table8.yaml) | Table 8 | Cat. 2+3 | 2 h / 10 % Cn |
+| [`PPC_EOL_cat123_IEC60095-8_Table6.yaml`](../test_definitions/IEC60095-8/PPC_EOL_cat123_IEC60095-8_Table6.yaml) | Table 6 | Cat. 1+2+3 | 2 h + 3 h / 25 % Cn, 2 × PP1 |
 
 ### IEC 60095-8 – Charge Recovery (CR) Test
 
 | File | Norm | Description |
 |---|---|---|
-| [`CR_continuous_IEC60095-8_Table11.yaml`](../clarios_nexfts/CR_continuous_IEC60095-8_Table11.yaml) | Table 11 | CR Test – continuous 72 h quiescent drain (0.033·In) |
-| [`CR_pulsed_IEC60095-8_Table12.yaml`](../clarios_nexfts/CR_pulsed_IEC60095-8_Table12.yaml) | Table 12 | CR Test – pulsed 72 h discharge (4320 × 6 s / 54 s) |
+| [`CR_continuous_IEC60095-8_Table11.yaml`](../test_definitions/IEC60095-8/CR_continuous_IEC60095-8_Table11.yaml) | Table 11 | CR Test – continuous 72 h quiescent drain (0.033·In) |
+| [`CR_pulsed_IEC60095-8_Table12.yaml`](../test_definitions/IEC60095-8/CR_pulsed_IEC60095-8_Table12.yaml) | Table 12 | CR Test – pulsed 72 h discharge (4320 × 6 s / 54 s) |
 
 ### IEC 60095-8 – Endurance Tests
 
 | File | Norm | Description |
 |---|---|---|
-| [`Endurance_50DoD_IEC60095-8_Table13.yaml`](../clarios_nexfts/Endurance_50DoD_IEC60095-8_Table13.yaml) | Table 13 | Endurance 50 % DoD cycling – 360 cycles at 40 °C; uses `limit.charge` and `limit.cumulative_charge` for CR ≥ 1.08 |
-| [`Endurance_opt_cycle_IEC60095-8_Table14.yaml`](../clarios_nexfts/Endurance_opt_cycle_IEC60095-8_Table14.yaml) | Table 14 | Optional endurance cycle test – 100 h inner loop + `goto` for indefinite repetition |
-| [`Endurance_17p5DoD_IEC60095-8_Table15.yaml`](../clarios_nexfts/Endurance_17p5DoD_IEC60095-8_Table15.yaml) | Table 15 | Endurance 17.5 % DoD – pre-discharge + 85-cycle loop + Ce capacity measurement |
-
----
-
-## Development setup
-
-### Schema validation
-
-NEXFTS YAML files can be validated manually against the schema:
-
-```bash
-python clarios_nexfts/validate_nextfts.py \
-    --schema schema/nexfts.schema.json \
-    --yaml clarios_nexfts/my_test.yaml
-```
-
-Options:
-
-| Option | Description |
-|---|---|
-| `-s` / `--schema` | Path to the JSON schema file |
-| `-y` / `--yaml` | Path to the YAML file to validate |
-| `-q` / `--quiet` | Output only `OK` / `FAIL`, no details |
-| `--json` | Output errors as JSON (for CI / tooling) |
-
----
-
-### Understanding error output
-
-On successful validation the validator outputs:
-
-```
-[OK] clarios_nexfts/my_test.yaml is valid against schema/nexfts.schema.json
-```
-
-On errors, one entry with four lines is shown for each violation:
-
-```
-[FAIL] clarios_nexfts/my_test.yaml violates schema schema/nexfts.schema.json
-
-01. clarios_nexfts/my_test.yaml:42:7
-    Path:    steps[id=3].temperature
-    Error:   'unit' is a required property
-    Hint:    missing key 'unit' – found unexpected key(s): 'umit' (typo?)
-    Rule:    required = ['value', 'unit']
-```
-
-| Line | Content |
-|---|---|
-| `01.` + file:line:col | Location in the YAML file (directly clickable as a link in PyCharm) |
-| `Path` | Path to the faulty element – using the actual step `id` instead of the array index |
-| `Error` | Error message from the JSON schema validator |
-| `Hint` | Context-specific hint about the faulty element (see below) |
-| `Rule` | Triggered schema rule with the expected value |
-
-> The line number points to the faulty sub-node. If it does not exist (e.g. for a missing required field), the beginning of the corresponding step is shown instead.
-
----
-
-#### Error types and hints
-
-**`required` – Required field missing**
-
-```
-Error:   'unit' is a required property
-Hint:    missing key 'unit' – found unexpected key(s): 'umit' (typo?)
-Rule:    required = ['value', 'unit']
-```
-
-The field `unit` is not present in the object. The hint checks whether the same object contains unknown keys that could be typos. In the example, `umit` was written instead of `unit`.
-
----
-
-**`enum` – Invalid value**
-
-```
-Error:   'fluft' is not one of ['air', 'water']
-Hint:    invalid value 'fluft' – allowed: ['air', 'water']
-Rule:    enum = ['air', 'water']
-```
-
-The specified value is not in the list of allowed values. The hint shows the actual value and all valid alternatives.
-
----
-
-**`type` – Wrong data type**
-
-```
-Error:   'abc' is not of type 'integer'
-Hint:    expected type 'integer', got str 'abc'
-Rule:    type = 'integer'
-```
-
-The field expects a different data type. Common with `id` (must be `integer`, not a string) or `value` (must be `number`).
-
-> **Note on `id`:** The step ID must be specified as a **whole number** without quotation marks: `id: 3` ✅ – not `id: "3"` ❌
-
----
-
-**`anyOf` / `oneOf` / `allOf` – Structural error**
-
-```
-Error:   {'id': 5, 'type': 'discharge', ...} is not valid under any of the given schemas
-Rule:    anyOf = [{'required': ['duration']}, {'required': ['limit']}]
-```
-
-The step does not satisfy any of the allowed structural variants. For `discharge` and `charge` this means: neither `duration` nor `limit` is present. No hint is output since the object would be too large.
-
----
-
-**`pattern` / `minimum` / other – Value range**
-
-```
-Error:   '1.0' does not match '^[0-9]+(\\.[0-9]+(\\.[0-9]+)?)?$'
-Hint:    offending value: '1.0'
-Rule:    pattern = '^[0-9]+(\\.[0-9]+(\\.[0-9]+)?)?$'
-```
-
-The value violates a pattern or range rule. The hint shows the actual value.
-
----
-
-**`semantic` – Unit consistency**
-
-```
-Error:   unit mismatch: steps[id=3].current.unit is 'mA' but 'Icc' in global_values has unit 'A'
-Hint:    'Icc' is defined as A in global_values – step unit 'mA' is in the same dimension
-         but at a different scale; the numeric value of 'Icc' (680) would be misinterpreted
-         (e.g. 680 A ≠ 680 mA)
-Rule:    semantic
-```
-
-This error is not a JSON Schema violation but a **semantic check** performed by the validator after schema validation. It is triggered when a step field's `value` expression references a `global_values` key whose `unit` differs from the `unit` declared in the step field.
-
-Two sub-cases are distinguished:
-
-| Situation | Example | Hint |
-|---|---|---|
-| Same dimension, different scale | `Icc` defined as `A`, step uses `mA` | Describes the scale ambiguity and shows the mismatched numeric value |
-| Different physical dimension | `Icc` defined as `A`, step uses `V` | States that the physical dimensions differ |
-
-The fix is to align the step's `unit` with the `unit` defined for the referenced key in `global_values`.
-
----
-
-**`semantic` – Duplicate step IDs**
-
-```
-Error:   duplicate step id 3: first occurrence at steps[2], repeated at steps[3]
-Hint:    each step must have a unique id; check for renumbering mistakes
-Rule:    semantic
-```
-
-Two steps share the same `id`. This often occurs after inserting or renumbering steps. Fix: ensure every step has a unique integer ID.
-
----
-
-**`semantic` – Non-consecutive step IDs**
-
-```
-Error:   step ids are not consecutive starting at 1: found [1, 2, 4, 5], expected [1, 2, 3, 4, 5]
-Hint:    step ids must be 1, 2, 3, … without gaps or wrong start value
-Rule:    semantic
-```
-
-The step IDs do not form a gapless sequence starting at 1. This check is only run when no duplicate IDs are present.
-
----
-
-**`semantic` – `cumulative_charge` validation**
-
-The validator performs three checks on `limit.cumulative_charge.steps`:
-
-*Current step missing from list:*
-```
-Error:   steps[id=4].limit.cumulative_charge.steps does not include the current step id (4)
-         – the current step must be listed so its own charge is counted
-Hint:    add 4 to the steps list, e.g. steps: [3, 4]
-Rule:    semantic
-```
-
-*Non-existent step ID referenced:*
-```
-Error:   steps[id=4].limit.cumulative_charge.steps references step id 99
-         which does not exist in the sequence
-Hint:    check that all step ids in the steps list are defined in the sequence
-Rule:    semantic
-```
-
-*Future step referenced:*
-```
-Error:   steps[id=4].limit.cumulative_charge.steps references future step id 5
-         – only completed (earlier) steps can be referenced
-Hint:    cumulative_charge can only sum charge from steps that appear earlier in the sequence
-Rule:    semantic
-```
-
----
-
-**System errors**
-
-| Message | Cause |
-|---|---|
-| `[ERROR] File not found: …` | YAML or schema file not found |
-| `[ERROR] Could not load input files: …` | YAML syntax error – the file is not valid YAML |
-| `[ERROR] Invalid schema: …` | The schema file itself is faulty |
-
-> A **YAML syntax error** (e.g. incorrect indentation) is caught during loading, before schema validation begins. The error message in this case includes the line number from the YAML parser.
-
----
-
-### Pre-commit hook (PyCharm / Git)
-
-All NEXFTS YAML files under `clarios_nexfts/` are **automatically validated against the schema before every commit**. Invalid files block the commit.
-
-**One-time setup** (per developer):
-
-```bash
-pip install pre-commit        # if not already installed
-pre-commit install            # register the hook in the local repository
-```
-
-**Manual run** against all files:
-
-```bash
-pre-commit run --all-files
-```
-
-**PyCharm integration:**  
-The hook is executed automatically by PyCharm when a commit is triggered via
-*Git → Commit* (`Ctrl+K`) – no separate configuration is required.
-
-The hook configuration is located in [`.pre-commit-config.yaml`](../.pre-commit-config.yaml).  
-The wrapper script that calls `validate_nextfts.py` for each file individually is located in [`tools/nexfts_validate_hook.py`](../tools/nexfts_validate_hook.py).
-
+| [`Endurance_50DoD_IEC60095-8_Table13.yaml`](../test_definitions/IEC60095-8/Endurance_50DoD_IEC60095-8_Table13.yaml) | Table 13 | Endurance 50 % DoD cycling – 360 cycles at 40 °C; uses `limit.charge` and `limit.cumulative_charge` for CR ≥ 1.08 |
+| [`Endurance_opt_cycle_IEC60095-8_Table14.yaml`](../test_definitions/IEC60095-8/Endurance_opt_cycle_IEC60095-8_Table14.yaml) | Table 14 | Optional endurance cycle test – 100 h inner loop + `goto` for indefinite repetition |
+| [`Endurance_17p5DoD_IEC60095-8_Table15.yaml`](../test_definitions/IEC60095-8/Endurance_17p5DoD_IEC60095-8_Table15.yaml) | Table 15 | Endurance 17.5 % DoD – pre-discharge + 85-cycle loop + Ce capacity measurement |

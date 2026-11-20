@@ -1,0 +1,197 @@
+nexfts_schema_version: "0.3.0"
+
+metadata:
+  name: "DCA_PreCycling"
+  version: "1.0.0"
+  description: "DCA – Pre-cycling according to Table 8. Battery in water bath at 25 ± 2 °C according to EN 50342-1:2015, 5.3.2."
+  standard:
+    name: "EN 50342-6:2025"
+    title: "Lead-acid starter batteries - Part 6: Batteries for micro-cycle applications"
+    clause: "Table 8"
+
+global_values:
+  Cn:
+    value: 60
+    unit: "Ah"
+    description: "Nominal capacity C20 (example value – adjust to actual battery specification)"
+  In:
+    value: 3
+    unit: "A"
+    description: "Nominal 20 hour discharge current (Cn / 20 h)"
+  Uc:
+    value: 14.8
+    unit: "V"
+    description: "Charging voltage – 16.0 V for flooded batteries, 14.8 V for VRLA batteries (adjust value to battery type, according to EN 50342-1:2015, 5.2)"
+
+global_limits:
+  max_voltage:
+    value: 17.0
+    unit: "V"
+  max_current:
+    value: 30
+    unit: "A"
+  max_temperature:
+    value: 40
+    unit: "degC"
+
+
+steps:
+  # ──────────────────────────────────────────────────────────────────────
+  # Pre-cycling
+  # ──────────────────────────────────────────────────────────────────────
+
+  # Step 10 – DCH 25 A until U > 10.5 V
+  - id: 1
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    current:
+      value: 25
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    result:
+      - name: "Q_DCH_1"
+        description: "Discharged capacity at 25 A"
+    comment: "25 A discharge (step 10)"
+
+  # Step 11 – CHA 24 h at Uc / 5·In
+  - id: 2
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "h"
+    result:
+      - name: "Q_CHA_1"
+        description: "Recharged capacity"
+      - name: "I_EOC_1"
+        description: "End of charge current"
+    comment: "Recharge – voltage Uc for flooded / VRLA (step 11)"
+
+  # Step 12 – PAU 1 h – Relaxation
+  - id: 3
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 1
+      unit: "h"
+    comment: "Relaxation (step 12)"
+
+  # Step 13 – DCH 25 A until U > 10.5 V
+  - id: 4
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    current:
+      value: 25
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    result:
+      - name: "Q_DCH_2"
+        description: "Discharged capacity at 25 A"
+    comment: "25 A discharge (step 13)"
+
+  # Step 14 – CHA 24 h at Uc / 5·In
+  - id: 5
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "h"
+    result:
+      - name: "Q_CHA_2"
+        description: "Recharged capacity"
+      - name: "I_EOC_2"
+        description: "End of charge current"
+    comment: "Recharge – voltage Uc for flooded / VRLA (step 14)"
+
+  # Step 15 – PAU 1 h – Relaxation
+  - id: 6
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    duration:
+      value: 1
+      unit: "h"
+    comment: "Relaxation (step 15)"
+
+  # Step 16 – DCH 1·In until U > 10.5 V – Ce discharge
+  - id: 7
+    type: discharge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    current:
+      value: "In"
+      unit: "A"
+    limit:
+      voltage:
+        operator: less_than
+        value: 10.5
+        unit: "V"
+    result:
+      - name: "Ce"
+        description: "Measured capacity at In rate"
+      - name: "C_rch"
+        description: "Recharge capacity target: C_rch = Ce - 0.2 * Cn"
+    comment: "Ce discharge at 1·In (step 16)"
+
+  # Step 17 – CHA at Uc / 5·In until C_rch reached
+  - id: 8
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    limit:
+      charge:
+        operator: greater_than_or_equal
+        value: "C_rch"
+        unit: "Ah"
+    result:
+      - name: "Q_CHA_final"
+        description: "Recharged capacity (stop when C_rch reached)"
+    comment: "Recharge until C_rch [Ah] is reached; C_rch = Ce - 0.2·Cn (step 17)"
+

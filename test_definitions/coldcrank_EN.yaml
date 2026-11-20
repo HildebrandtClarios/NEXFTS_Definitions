@@ -1,0 +1,143 @@
+# https://json-schema.org/learn/getting-started-step-by-step
+# https://codebeautify.org/yaml-to-json-schema-generator
+# https://yaml.org/
+
+nexfts_schema_version: "0.3.0"
+metadata:
+  name: "cranking_performance_EN"
+  version: "1.0.0"
+  description: "Cranking performance test according to EN 50342-1"
+  standard:
+    name: "EN 50342-1"
+    title: "Lead-acid starter batteries - General requirements and methods of test"
+    date: "2015-04"
+    clause: "Clause 9.1"
+
+global_values:
+  Cn:
+    value: 100
+    unit: "Ah"
+    description: "Nominal capacity"
+  Icc:
+    value: 680
+    unit: "A"
+    description: "Cold cranking current (EN 50342-1)"
+  Uc:
+    value: 14.4
+    unit: "V"
+    description: "Charge voltage"
+  In:
+    value: 5
+    unit: "A"
+    description: "Nominal current (Cn / 20h)"
+
+global_limits:
+  max_voltage:
+    value: 16.5
+    unit: "V"
+  max_current:
+    value: 300
+    unit: "A"
+  max_temperature:
+    value: 60
+    unit: "degC"
+
+steps:
+  - id: 1
+    type: rest
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 24
+      unit: "hours"
+    comment: "Initial rest at 25°C"
+  - id: 2
+    type: set
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    wait: false
+    comment: "Set climate chamber to -18°C"
+  - id: 3
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 24
+      unit: "hours"
+    comment: "Temperature soak at -18 degC (cooling phase)"
+  - id: 4
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "Icc"
+      unit: "A"
+    duration:
+      value: 10
+      unit: "seconds"
+    limit:
+      voltage:
+        operator: less_than
+        value: 9.5
+        unit: "V"
+    comment: "First discharge step at -18 degC"
+  - id: 5
+    type: rest
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    duration:
+      value: 10
+      unit: "seconds"
+    comment: "Rest after first discharge step"
+  - id: 6
+    type: discharge
+    temperature:
+      value: -18
+      unit: "degC"
+      medium: "air"
+    current:
+      value: "0.6 * Icc"
+      unit: "A"
+    duration:
+      value: 180
+      unit: "seconds"
+    limit:
+      voltage:
+        operator: less_than
+        value: 6.0
+        unit: "V"
+    comment: "Second discharge step at -18 degC"
+  - id: 7
+    type: set
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    wait: false
+    comment: "Set water bath to 25°C"
+  - id: 8
+    type: charge
+    temperature:
+      value: 25
+      unit: "degC"
+      medium: "water"
+    voltage:
+      value: "Uc"
+      unit: "V"
+    current:
+      value: "5 * In"
+      unit: "A"
+    duration:
+      value: 24
+      unit: "hours"
+    comment: "Final charge at 25 degC"
