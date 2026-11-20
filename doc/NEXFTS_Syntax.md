@@ -8,36 +8,47 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [1. `nexfts_schema_version`](#1-nexfts_schema_version)
-- [2. `metadata`](#2-metadata)
-- [3. `global_values`](#3-global_values)
-- [4. `global_limits`](#4-global_limits)
-- [5. `steps`](#5-steps)
-  - [Required fields per step](#required-fields-per-step)
-  - [Step types](#step-types)
-  - [5.1 `rest` – Rest phase](#51-rest--rest-phase)
-  - [5.2 `discharge` – Discharge](#52-discharge--discharge)
-  - [5.3 `charge` – Charge](#53-charge--charge)
-  - [5.4 `begin` – Loop start](#54-begin--loop-start)
-  - [5.5 `cycle` – Loop end](#55-cycle--loop-end)
-  - [5.6 `sub` – Subroutine call](#56-sub--subroutine-call)
-  - [5.7 `goto` – Unconditional jump](#57-goto--unconditional-jump)
-  - [5.8 `set` – Set temperature](#58-set--set-temperature)
-  - [5.9 `pause` – Planned test interruption](#59-pause--planned-test-interruption-since-030)
-- [6. Step Attributes](#6-step-attributes)
-  - [6.1 `temperature`](#61-temperature)
-  - [6.2 `duration`](#62-duration)
-  - [6.3 `current` / `voltage`](#63-current--voltage)
-  - [6.4 `limit`](#64-limit)
-    - [6.4.1 Simple conditions: `voltage` / `current` / `time` / `charge`](#641-simple-conditions-voltage--current--time--charge)
-    - [6.4.2 `cumulative_charge` — Charge sum across explicit steps](#642-cumulative_charge--charge-sum-across-explicit-steps)
-  - [6.5 `result`](#65-result)
-- [7. Expressions and Global Value References (since 0.2.0)](#7-expressions-and-global-value-references-since-020)
-  - [7.1 Where expressions are used](#71-where-expressions-are-used)
-  - [7.2 Supported expression syntax](#72-supported-expression-syntax)
-  - [7.3 Example](#73-example)
-- [Example files](#example-files)
+- [NEXFTS Test Definition — Syntax Reference](#nexfts-test-definition--syntax-reference)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [1. `nexfts_schema_version`](#1-nexfts_schema_version)
+    - [Versioning scheme](#versioning-scheme)
+    - [Version history](#version-history)
+  - [2. `metadata`](#2-metadata)
+  - [3. `global_values`](#3-global_values)
+  - [4. `global_limits`](#4-global_limits)
+  - [5. `steps`](#5-steps)
+    - [Required fields per step](#required-fields-per-step)
+    - [Step types](#step-types)
+    - [5.1 `rest` – Rest phase](#51-rest--rest-phase)
+    - [5.2 `discharge` – Discharge](#52-discharge--discharge)
+    - [5.3 `charge` – Charge](#53-charge--charge)
+    - [5.4 `begin` – Loop start](#54-begin--loop-start)
+    - [5.5 `cycle` – Loop end](#55-cycle--loop-end)
+    - [5.6 `sub` – Subroutine call](#56-sub--subroutine-call)
+    - [5.7 `goto` – Unconditional jump](#57-goto--unconditional-jump)
+    - [5.8 `set` – Set temperature](#58-set--set-temperature)
+    - [5.9 `pause` – Planned test interruption (since 0.3.0)](#59-pause--planned-test-interruption-since-030)
+  - [6. Step Attributes](#6-step-attributes)
+    - [6.1 `temperature`](#61-temperature)
+    - [6.2 `duration`](#62-duration)
+    - [6.3 `current` / `voltage`](#63-current--voltage)
+    - [6.4 `limit`](#64-limit)
+      - [Available limit conditions](#available-limit-conditions)
+      - [6.4.1 Simple conditions: `voltage` / `current` / `time` / `charge`](#641-simple-conditions-voltage--current--time--charge)
+      - [6.4.2 `cumulative_charge` — Charge sum across explicit steps](#642-cumulative_charge--charge-sum-across-explicit-steps)
+      - [Allowed operators](#allowed-operators)
+    - [6.5 `result`](#65-result)
+  - [7. Expressions and Global Value References (since 0.2.0)](#7-expressions-and-global-value-references-since-020)
+    - [7.1 Where expressions are used](#71-where-expressions-are-used)
+    - [7.2 Supported expression syntax](#72-supported-expression-syntax)
+    - [7.3 Example](#73-example)
+  - [Example files](#example-files)
+    - [Cold-crank / EN standard](#cold-crank--en-standard)
+    - [EN 50342-6](#en-50342-6)
+    - [IEC 60095-8 – Power Performance Characteristics (PPC)](#iec-60095-8--power-performance-characteristics-ppc)
+    - [IEC 60095-8 – Charge Recovery (CR) Test](#iec-60095-8--charge-recovery-cr-test)
+    - [IEC 60095-8 – Endurance Tests](#iec-60095-8--endurance-tests)
 
 ---
 
@@ -61,6 +72,7 @@ It consists of five mandatory sections:
 Specifies which schema version the file was written against.
 
 ```yaml
+nexfts_schema_version: "0.3.0"
 nexfts_schema_version: "0.3.0"
 ```
 
@@ -147,10 +159,16 @@ global_values:
     value: "(0.02 * Cn - 0.083) / 48 * 3600"
     unit: "s"
     description: "Computed discharge duration referencing other global_values"
+  tDCH:
+    value: "(0.02 * Cn - 0.083) / 48 * 3600"
+    unit: "s"
+    description: "Computed discharge duration referencing other global_values"
 ```
 
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
+| `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing other `global_values` keys, e.g. `"(0.02 * Cn - 0.083) / 48 * 3600"` |
+| `unit` | `string` | ✅ | `"A"`, `"V"`, `"Ah"`, `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
 | `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing other `global_values` keys, e.g. `"(0.02 * Cn - 0.083) / 48 * 3600"` |
 | `unit` | `string` | ✅ | `"A"`, `"V"`, `"Ah"`, `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
 | `description` | `string` | ⬜ | Free text |
@@ -194,6 +212,8 @@ Each object has the required fields `value` (`number`) and `unit` (`string`).
 
 Sequence of test steps. At least one step is required.
 Every step has at minimum the required fields `id` and `type`.
+Sequence of test steps. At least one step is required.
+Every step has at minimum the required fields `id` and `type`.
 Further required fields depend on the step type (see table below).
 
 ### Required fields per step
@@ -216,6 +236,7 @@ Further required fields depend on the step type (see table below).
 | `goto` | Unconditional jump to a step | `id`, `type`, `target_id` |
 | `set` | Set temperature | `id`, `type`, `temperature` (optional: `wait`) |
 | `pause` | Planned test interruption for manual operations | `id`, `type`, `comment` |
+| `pause` | Planned test interruption for manual operations | `id`, `type`, `comment` |
 
 ---
 
@@ -224,6 +245,7 @@ Further required fields depend on the step type (see table below).
 Pauses the test for a defined duration. No current flows; the temperature is maintained.
 
 ```yaml
+# Basic rest – fixed duration only
 # Basic rest – fixed duration only
 - id: 1
   type: rest
@@ -265,6 +287,31 @@ Pauses the test for a defined duration. No current flows; the temperature is mai
   comment: "Relaxation 3 h; abort and jump to step 20 if U < 11.0 V"
 ```
 
+```yaml
+# Rest with voltage monitoring and conditional goto
+- id: 10
+  type: rest
+  temperature:
+    value: 40
+    unit: "degC"
+    medium: "water"
+  duration:
+    value: 3
+    unit: "h"
+  limit:
+    voltage:
+      operator: less_than
+      value: 11.0
+      unit: "V"
+    goto:
+      target_id: 20
+      comment: "Jump to check-up if voltage drops below 11.0 V during rest"
+  result:
+    - name: "U(3h)"
+      description: "Voltage after 3 h rest"
+  comment: "Relaxation 3 h; abort and jump to step 20 if U < 11.0 V"
+```
+
 | Field | Required | Description |
 |---|---|---|
 | `id` | ✅ | Unique step ID (`integer` ≥ 1) |
@@ -272,8 +319,16 @@ Pauses the test for a defined duration. No current flows; the temperature is mai
 | `temperature` | ✅ | Test temperature (see [6.1 `temperature`](#61-temperature)) |
 | `duration` | ✅ | Rest duration (see [6.2 `duration`](#62-duration)) |
 | `limit` | ⬜ | Optional abort criterion during rest (see [6.4 `limit`](#64-limit)) |
+| `limit` | ⬜ | Optional abort criterion during rest (see [6.4 `limit`](#64-limit)) |
 | `result` | ⬜ | Measurement results to be recorded (see [6.5 `result`](#65-result)) |
 | `comment` | ⬜ | Free-text description |
+
+> **`limit` on rest steps (since 0.3.0):** While `duration` defines the planned rest time, an optional `limit` can trigger an early abort — typically a voltage threshold to detect cell failure during long rest phases. Combined with `limit.goto`, this enables conditional branching (e.g. jump to a check-up sequence if the battery self-discharges abnormally).
+>
+> | Variant | `duration` | `limit` | Behaviour |
+> |---|---|---|---|
+> | Fixed duration only | ✅ | — | Rest ends after timer expires |
+> | Duration + voltage monitoring | ✅ | ✅ | Rest ends after timer **or** early if voltage condition is met |
 
 > **`limit` on rest steps (since 0.3.0):** While `duration` defines the planned rest time, an optional `limit` can trigger an early abort — typically a voltage threshold to detect cell failure during long rest phases. Combined with `limit.goto`, this enables conditional branching (e.g. jump to a check-up sequence if the battery self-discharges abnormally).
 >
@@ -492,6 +547,7 @@ Marks the start of a loop block. The associated `cycle` element must carry the s
 | `comment` | ✅ | Description of the loop |
 
 > `begin` must **not** contain a `temperature` field.
+> `begin` must **not** contain a `temperature` field.
 > The number of iterations is specified in the associated [`cycle` step](#55-cycle--loop-end) via `count`.
 
 ---
@@ -681,10 +737,20 @@ duration:
   unit: "s"
 ```
 
+```yaml
+# Expression referencing a global_values key (since 0.2.0)
+duration:
+  value: "1 + tDCH"
+  unit: "s"
+```
+
 | Field | Type | Required | Allowed values |
 |---|---|---|---|
 | `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing `global_values` keys, e.g. `"tDCH"`, `"1 + tDCH"` |
+| `value` | `number` or `string` | ✅ | Numeric value **or** expression referencing `global_values` keys, e.g. `"tDCH"`, `"1 + tDCH"` |
 | `unit` | `string` | ✅ | `"s"`, `"seconds"`, `"min"`, `"minutes"`, `"h"`, `"hours"` |
+
+> **Expression support (since 0.2.0):** Like `current.value` and `voltage.value`, `duration.value` now also accepts string expressions that reference `global_values` keys. This allows computed durations that automatically adapt when a referenced global value changes.
 
 > **Expression support (since 0.2.0):** Like `current.value` and `voltage.value`, `duration.value` now also accepts string expressions that reference `global_values` keys. This allows computed durations that automatically adapt when a referenced global value changes.
 
@@ -715,8 +781,11 @@ voltage:
 
 Defines abort conditions for a step. Multiple conditions are combined using `logic`.
 If no condition is met, execution continues with the next step.
+Defines abort conditions for a step. Multiple conditions are combined using `logic`.
+If no condition is met, execution continues with the next step.
 The optional `goto` attribute allows jumping to any step when the condition is satisfied.
 
+> **Note:** `limit` is used exclusively as a **cut-off criterion** (e.g. voltage drops below a threshold, current falls below the tail-current level).
 > **Note:** `limit` is used exclusively as a **cut-off criterion** (e.g. voltage drops below a threshold, current falls below the tail-current level).
 > The **duration** of a step is specified via `duration`. For `discharge` and `charge` steps the same three variants apply:
 >
@@ -790,6 +859,7 @@ limit:
 > **`charge`** tracks the charge accumulated **within the current step only**.
 > To aggregate charge across multiple steps use `cumulative_charge` (see [6.4.2](#642-cumulative_charge--charge-sum-across-explicit-steps)).
 
+> If `limit.goto` is **not** specified, execution continues with the next step after the condition is met.
 > If `limit.goto` is **not** specified, execution continues with the next step after the condition is met.
 > If `limit.goto` is **specified**, execution jumps to `target_id` when the condition is met.
 
